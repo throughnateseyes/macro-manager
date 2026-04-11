@@ -8,6 +8,7 @@ const { uIOhook, UiohookKey } = require('uiohook-napi');
 // ---------------------------------------------------------------------------
 const DATA_DIR = app.getPath('userData');
 const MACROS_PATH = path.join(DATA_DIR, 'macros.json');
+const USAGE_PATH  = path.join(DATA_DIR, 'usage.json');
 
 // Legacy path — used for one-time migration from the Python app
 const LEGACY_PATH = path.join(__dirname, '..', 'snippets.json');
@@ -21,27 +22,68 @@ const DEFAULT_DATA = {
 };
 
 function loadMacros() {
-  // If macros.json doesn't exist yet, try migrating from snippets.json
-  if (!fs.existsSync(MACROS_PATH)) {
-    if (fs.existsSync(LEGACY_PATH)) {
-      try {
-        const legacy = JSON.parse(fs.readFileSync(LEGACY_PATH, 'utf-8'));
-        fs.writeFileSync(MACROS_PATH, JSON.stringify(legacy, null, 2), 'utf-8');
-        return legacy;
-      } catch { /* fall through to default */ }
+  // If macros.json exists, always use it — never fall back to legacy.
+  if (fs.existsSync(MACROS_PATH)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(MACROS_PATH, 'utf-8'));
+      // Shape normalization — guard against corrupt or partial writes.
+      if (!Array.isArray(parsed.snippets)) parsed.snippets = [];
+      if (typeof parsed.prefix !== 'string' || parsed.prefix.length === 0) parsed.prefix = '/';
+      return parsed;
+    } catch {
+      console.error('[macros] macros.json is corrupt — resetting to defaults');
+      const fresh = { snippets: [], prefix: '/' };
+      fs.writeFileSync(MACROS_PATH, JSON.stringify(fresh, null, 2), 'utf-8');
+      return fresh;
     }
-    fs.writeFileSync(MACROS_PATH, JSON.stringify(DEFAULT_DATA, null, 2), 'utf-8');
-    return { ...DEFAULT_DATA, snippets: [] };
   }
-  try {
-    return JSON.parse(fs.readFileSync(MACROS_PATH, 'utf-8'));
-  } catch {
-    return { ...DEFAULT_DATA, snippets: [] };
+
+  // macros.json does not exist yet — one-time migration from Python app.
+  if (fs.existsSync(LEGACY_PATH)) {
+    try {
+      const legacy = JSON.parse(fs.readFileSync(LEGACY_PATH, 'utf-8'));
+      if (!Array.isArray(legacy.snippets)) legacy.snippets = [];
+      if (typeof legacy.prefix !== 'string' || legacy.prefix.length === 0) legacy.prefix = '/';
+      fs.writeFileSync(MACROS_PATH, JSON.stringify(legacy, null, 2), 'utf-8');
+      console.log('[macros] Migrated', legacy.snippets.length, 'snippets from legacy snippets.json');
+      return legacy;
+    } catch {
+      console.error('[macros] Failed to migrate legacy snippets.json — starting fresh');
+    }
   }
+
+  // No data anywhere — write defaults and return.
+  const fresh = { snippets: [], prefix: '/' };
+  fs.writeFileSync(MACROS_PATH, JSON.stringify(fresh, null, 2), 'utf-8');
+  return fresh;
 }
 
 function saveMacros(data) {
   fs.writeFileSync(MACROS_PATH, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+// ---------------------------------------------------------------------------
+// Usage tracking helpers  { "abbr": count, ... }
+// ---------------------------------------------------------------------------
+function loadUsage() {
+  if (fs.existsSync(USAGE_PATH)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(USAGE_PATH, 'utf-8'));
+      if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch { /* fall through */ }
+  }
+  return {};
+}
+
+function saveUsage(usage) {
+  fs.writeFileSync(USAGE_PATH, JSON.stringify(usage, null, 2), 'utf-8');
+}
+
+function incrementUsage(abbr) {
+  const usage = loadUsage();
+  usage[abbr] = (usage[abbr] || 0) + 1;
+  saveUsage(usage);
+  return usage[abbr];
 }
 
 // ---------------------------------------------------------------------------
@@ -51,27 +93,56 @@ let buf = '';
 let macrosCache = loadMacros();
 let listening = true;
 
-// Map uiohook keycodes → characters (printable ASCII subset)
+console.log('[macros] Loaded from:', MACROS_PATH);
+console.log('[macros] Snippet count:', macrosCache.snippets.length);
+console.log('[macros] Prefix:', macrosCache.prefix);
+macrosCache.snippets.forEach((s, i) =>
+  console.log(`  [${i}] abbr="${s.abbr}" content="${String(s.content).slice(0, 60)}..."`)
+);
+
+// ---------------------------------------------------------------------------
+// Keycode → character map (printable ASCII)
+//
+// uiohook fires on physical keycodes, not characters. Holding Shift does NOT
+// change the keycode — typing uppercase 'N' fires the same code as lowercase
+// 'n'. We always store lowercase and match case-insensitively, so shifted
+// letters work transparently without tracking shift state.
+// ---------------------------------------------------------------------------
 const KEYCODE_CHAR = {};
-'abcdefghijklmnopqrstuvwxyz'.split('').forEach((c, i) => {
+
+'abcdefghijklmnopqrstuvwxyz'.split('').forEach((c) => {
   KEYCODE_CHAR[UiohookKey[c.toUpperCase()] ?? UiohookKey[c]] = c;
 });
+
 '0123456789'.split('').forEach((c) => {
   KEYCODE_CHAR[UiohookKey[`Num${c}`] ?? UiohookKey[c]] = c;
 });
-// Common punctuation
+
+// Punctuation — covers all characters usable as a trigger prefix or in an
+// abbreviation. Shift variants of these keys are not tracked (see note above).
 const PUNCT_MAP = {
-  [UiohookKey.Slash]: '/',
-  [UiohookKey.Backslash]: '\\',
-  [UiohookKey.Period]: '.',
-  [UiohookKey.Comma]: ',',
-  [UiohookKey.Semicolon]: ';',
-  [UiohookKey.Equal]: '=',
-  [UiohookKey.Minus]: '-',
-  [UiohookKey.Quote]: "'",
-  [UiohookKey.Backquote]: '`',
+  [UiohookKey.Slash]:        '/',
+  [UiohookKey.Backslash]:    '\\',
+  [UiohookKey.Period]:       '.',
+  [UiohookKey.Comma]:        ',',
+  [UiohookKey.Semicolon]:    ';',
+  [UiohookKey.Equal]:        '=',
+  [UiohookKey.Minus]:        '-',
+  [UiohookKey.Quote]:        "'",
+  [UiohookKey.Backquote]:    '`',
+  [UiohookKey.BracketLeft]:  '[',
+  [UiohookKey.BracketRight]: ']',
 };
 Object.assign(KEYCODE_CHAR, PUNCT_MAP);
+
+// Pure modifier keycodes — pressing these does not change what is on screen,
+// so they must not reset the buffer. Stored as a Set for O(1) lookup.
+const MODIFIER_KEYS = new Set([
+  UiohookKey.Shift,      UiohookKey.ShiftRight,
+  UiohookKey.Alt,        UiohookKey.AltRight,
+  UiohookKey.Ctrl,       UiohookKey.CtrlRight,
+  UiohookKey.Meta,       UiohookKey.MetaRight,
+]);
 
 // Default snippets — date & time, dynamically generated at expansion time
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -108,28 +179,52 @@ const DEFAULT_RESOLVERS = {
   unix: () => String(Math.floor(Date.now() / 1000)),
 };
 
+// expandMacro() is called immediately when a trigger key (Space / Enter / Tab)
+// is pressed. At call time:
+//   - buf contains everything typed since the last reset, e.g. "/nate"
+//   - the trigger key itself has NOT been appended (trigger keys are handled
+//     before any character append and always clear buf afterward)
+//   - Shift and other pure modifiers never modified buf
+// If buf starts with the current prefix and the remainder matches a known
+// abbreviation, the typed text is replaced with the expansion.
 function expandMacro() {
-  const trimmed = buf.trim();
   const prefix = macrosCache.prefix || '/';
 
-  if (!trimmed.startsWith(prefix)) return;
+  if (!buf.startsWith(prefix)) return;
 
-  const abbr = trimmed.slice(prefix.length).toLowerCase();
+  const abbr = buf.slice(prefix.length).toLowerCase();
   if (!abbr) return;
 
-  const deleteCount = prefix.length + abbr.length + 1;
+  // deleteCount = everything currently in buf + the trigger key that just fired
+  const deleteCount = buf.length + 1;
 
-  // Check user macros first (they take priority)
+  // Check user macros first (they take priority over defaults)
   const userMatch = macrosCache.snippets.find(
     (s) => s.abbr.toLowerCase() === abbr
   );
   if (userMatch) {
-    const text = userMatch.content.replace(/<[^>]*>/g, '');
+    const raw = typeof userMatch.content === 'string' ? userMatch.content : '';
+    // Normalise content: handle HTML from old contenteditable saves, then
+    // decode entities so the pasted text is always clean plain text.
+    const text = raw
+      .replace(/<br\s*\/?>/gi,  '\n')    // <br>   → newline
+      .replace(/<\/div>/gi,     '\n')    // </div> → newline (contenteditable blocks)
+      .replace(/<[^>]*>/g,      '')      // strip all remaining tags
+      .replace(/&amp;/g,        '&')     // decode HTML entities
+      .replace(/&lt;/g,         '<')
+      .replace(/&gt;/g,         '>')
+      .replace(/&quot;/g,       '"')
+      .replace(/&apos;/g,       "'")
+      .replace(/&nbsp;/g,       ' ')
+      .replace(/\n{3,}/g,       '\n\n') // collapse runs of blank lines
+      .trim();
+    incrementUsage(abbr);
+    console.log(`[expand] "${abbr}" -> "${text.slice(0, 80)}${text.length > 80 ? '...' : ''}"`);
     typeExpansion(deleteCount, text);
     return;
   }
 
-  // Check default snippet resolvers
+  // Check built-in date/time resolvers
   const resolver = DEFAULT_RESOLVERS[abbr];
   if (resolver) {
     typeExpansion(deleteCount, resolver());
@@ -138,71 +233,80 @@ function expandMacro() {
 }
 
 function typeExpansion(deleteCount, text) {
-  // Briefly stop listening so our own synthetic keys aren't captured
+  // Disable the listener FIRST — before any key synthesis — so our own
+  // backspace and paste events are not re-captured by this handler.
   listening = false;
+  buf = '';  // clear immediately; the keydown handler's buf='' is a safety net
 
-  // Save clipboard, paste expansion, restore clipboard
+  // Snapshot the clipboard so we can restore it after pasting.
   const prev = clipboard.readText();
   clipboard.writeText(text);
 
-  // Delete the typed abbreviation + trigger key via backspaces
+  // Erase the typed abbreviation + trigger key.
   for (let i = 0; i < deleteCount; i++) {
     uIOhook.keyTap(UiohookKey.Backspace);
   }
 
-  // Paste (Cmd+V on Mac, Ctrl+V on Windows/Linux)
+  // Paste — Cmd+V on macOS, Ctrl+V on Windows / Linux.
   const modifier = process.platform === 'darwin' ? UiohookKey.Meta : UiohookKey.Ctrl;
   uIOhook.keyTap(UiohookKey.V, [modifier]);
 
-  // Restore clipboard after a short delay
+  // Restore the clipboard and re-enable the listener after a conservative
+  // delay. 300ms gives slower machines and the Windows hook stack enough
+  // time to finish processing the paste before we start capturing again.
   setTimeout(() => {
     clipboard.writeText(prev);
     listening = true;
-  }, 100);
+  }, 300);
 }
 
-// Register uiohook events
+// ---------------------------------------------------------------------------
+// uiohook event handlers
+// ---------------------------------------------------------------------------
 uIOhook.on('keydown', (e) => {
   if (!listening) return;
 
   const code = e.keycode;
 
-  // Trigger keys: space, enter, tab
+  // Trigger keys: Space / Enter / Tab — attempt expansion, then always reset.
   if (
     code === UiohookKey.Space ||
     code === UiohookKey.Enter ||
     code === UiohookKey.Tab
   ) {
     expandMacro();
-    buf = '';
+    buf = '';   // safety-net clear (typeExpansion also clears on match)
     return;
   }
 
-  // Backspace
+  // Backspace — trim the last character from the buffer.
   if (code === UiohookKey.Backspace) {
     buf = buf.slice(0, -1);
     return;
   }
 
-  // Printable character
   const ch = KEYCODE_CHAR[code];
   if (ch) {
-    buf += ch;
-  } else {
-    // Non-printable / modifier — reset buffer
-    if (
-      code !== UiohookKey.Shift &&
-      code !== UiohookKey.ShiftRight &&
-      code !== UiohookKey.Alt &&
-      code !== UiohookKey.AltRight &&
-      code !== UiohookKey.Ctrl &&
-      code !== UiohookKey.CtrlRight &&
-      code !== UiohookKey.Meta &&
-      code !== UiohookKey.MetaRight
-    ) {
-      buf = '';
+    // If the character typed IS the current prefix, start a fresh buffer from
+    // here. This ensures /abbr works even if the buffer contains garbage from
+    // earlier typing — e.g. user types "hello/nate" and we correctly reset to
+    // "/nate" the moment '/' is pressed.
+    if (ch === (macrosCache.prefix || '/')) {
+      buf = ch;
+    } else {
+      buf += ch;
     }
+  } else if (!MODIFIER_KEYS.has(code)) {
+    // Any unrecognised non-modifier key (arrow keys, F-keys, Escape, etc.)
+    // means the cursor may have moved or the context changed — reset.
+    buf = '';
   }
+});
+
+// A mouse click means the insertion point has moved; any partial abbreviation
+// in the buffer is now stale and must be discarded.
+uIOhook.on('mousedown', () => {
+  buf = '';
 });
 
 // ---------------------------------------------------------------------------
@@ -220,6 +324,13 @@ ipcMain.handle('macros:save', (_event, data) => {
 });
 
 ipcMain.handle('macros:getPath', () => MACROS_PATH);
+
+ipcMain.handle('macros:incrementUsage', (_event, abbr) => {
+  if (typeof abbr !== 'string' || !abbr) return 0;
+  return incrementUsage(abbr);
+});
+
+ipcMain.handle('macros:getUsage', () => loadUsage());
 
 ipcMain.handle('macros:listenerStatus', () => listening);
 

@@ -60,9 +60,45 @@
 
   <!-- Editor / Right Panel -->
   <main id="editor">
-    <!-- Empty state -->
+    <!-- Home screen -->
     <div id="editor-empty">
-      <p>Select a macro or create a new one</p>
+      <div class="home-screen">
+
+        <!-- Greeting -->
+        <div class="home-header">
+          <h1 class="home-greeting">hey, <span id="home-name">there</span> 👋</h1>
+          <p class="home-subtitle">here's how your macros are doing</p>
+        </div>
+
+        <!-- Stats row -->
+        <div class="home-stats-row">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-total">—</div>
+            <div class="stat-label">macros created</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-expansions">—</div>
+            <div class="stat-label">total expansions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-top-name">—</div>
+            <div class="stat-label" id="stat-top-label">most used</div>
+          </div>
+        </div>
+
+        <!-- Top macros -->
+        <div class="home-section">
+          <div class="home-section-title">your most used</div>
+          <div id="home-top-macros" class="home-top-macros"></div>
+        </div>
+
+        <!-- Quick access -->
+        <div class="home-section">
+          <div class="home-section-title">quick insert</div>
+          <div id="home-quick-row" class="home-quick-row"></div>
+        </div>
+
+      </div>
     </div>
 
     <!-- Editable macro form -->
@@ -157,6 +193,12 @@
 
   <!-- Settings popover -->
   <div id="settings-popover" class="settings-popover">
+    <div class="settings-section-label">General</div>
+    <div class="settings-row settings-row-col">
+      <span class="settings-row-label">Your name</span>
+      <input type="text" id="settings-name-input" class="settings-name-input" placeholder="there" autocomplete="off" maxlength="24" />
+    </div>
+    <div class="settings-section-divider"></div>
     <div class="settings-section-label">Appearance</div>
     <div class="settings-row">
       <span class="settings-row-label">Dark mode</span>

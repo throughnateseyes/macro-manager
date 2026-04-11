@@ -221,7 +221,7 @@ function selectMacro(index) {
 }
 
 // ---------------------------------------------------------------------------
-// Show empty state
+// Show empty state (home screen)
 // ---------------------------------------------------------------------------
 function showEmpty() {
   selectedIndex = -1;
@@ -229,6 +229,95 @@ function showEmpty() {
   editorForm.classList.add('hidden');
   defaultsPage.classList.add('hidden');
   renderList(searchInput.value);
+  renderHomeScreen();
+}
+
+// ---------------------------------------------------------------------------
+// Home screen
+// ---------------------------------------------------------------------------
+async function renderHomeScreen() {
+  // Name greeting
+  const name = localStorage.getItem('userName') || 'there';
+  document.getElementById('home-name').textContent = name;
+
+  // Stats — total macros
+  document.getElementById('stat-total').textContent = data.snippets.length;
+
+  // Usage data
+  let usage = {};
+  try { usage = await window.macroAPI.getUsage(); } catch { /* not in Electron */ }
+
+  // Total expansions
+  const totalExp = Object.values(usage).reduce((sum, n) => sum + n, 0);
+  document.getElementById('stat-expansions').textContent = totalExp.toLocaleString();
+
+  // Most-used macro
+  let topAbbr = null, topCount = 0;
+  for (const [abbr, count] of Object.entries(usage)) {
+    if (count > topCount) { topCount = count; topAbbr = abbr; }
+  }
+  const topMacro = topAbbr ? data.snippets.find((s) => s.abbr === topAbbr) : null;
+  if (topMacro) {
+    document.getElementById('stat-top-name').textContent = topMacro.title || topMacro.abbr;
+    document.getElementById('stat-top-label').textContent = `${topCount}× · most used`;
+  } else {
+    document.getElementById('stat-top-name').textContent = '—';
+    document.getElementById('stat-top-label').textContent = 'most used';
+  }
+
+  // Top 5 macros list
+  const topMacrosEl = document.getElementById('home-top-macros');
+  topMacrosEl.innerHTML = '';
+  const sorted = Object.entries(usage).sort(([, a], [, b]) => b - a).slice(0, 5);
+
+  if (sorted.length === 0) {
+    const hint = document.createElement('div');
+    hint.className = 'home-empty-hint';
+    hint.textContent = 'trigger your first macro to see stats here';
+    topMacrosEl.appendChild(hint);
+  } else {
+    const maxCount = sorted[0][1];
+    sorted.forEach(([abbr, count]) => {
+      const macro = data.snippets.find((s) => s.abbr === abbr);
+      const title = macro ? (macro.title || abbr) : abbr;
+      const barPct = Math.round((count / maxCount) * 100);
+      const row = document.createElement('div');
+      row.className = 'top-macro-row';
+      row.innerHTML = `
+        <div class="top-macro-info">
+          <span class="top-macro-title">${escHtml(title)}</span>
+          <span class="top-macro-abbr">${escHtml((data.prefix || '/') + abbr)}</span>
+        </div>
+        <div class="top-macro-bar-wrap">
+          <div class="top-macro-bar" style="width:${barPct}%"></div>
+        </div>
+        <span class="top-macro-count">${count}</span>
+      `;
+      topMacrosEl.appendChild(row);
+    });
+  }
+
+  // Quick access cards: /ts, /date, /time
+  const quickRow = document.getElementById('home-quick-row');
+  quickRow.innerHTML = '';
+  ['ts', 'date', 'time'].forEach((abbr) => {
+    const snippet = DEFAULT_SNIPPETS.find((s) => s.abbr === abbr);
+    if (!snippet) return;
+    const value = snippet.resolve();
+    const card = document.createElement('button');
+    card.className = 'quick-card';
+    card.innerHTML = `
+      <div class="quick-card-label">${escHtml((data.prefix || '/') + abbr)}</div>
+      <div class="quick-card-value">${escHtml(value)}</div>
+    `;
+    card.addEventListener('click', () => {
+      navigator.clipboard.writeText(value).then(() => {
+        card.classList.add('copied');
+        setTimeout(() => card.classList.remove('copied'), 1200);
+      });
+    });
+    quickRow.appendChild(card);
+  });
 }
 
 function updatePrefixDisplay() {
@@ -524,6 +613,23 @@ function stripHtml(html) {
   renderList();
   checkListenerStatus();
   setInterval(checkListenerStatus, 5000);
+
+  // Home screen — render after data is loaded
+  renderHomeScreen();
+
+  // Settings: name input
+  const nameInput = document.getElementById('settings-name-input');
+  if (nameInput) {
+    nameInput.value = localStorage.getItem('userName') || '';
+    nameInput.addEventListener('input', () => {
+      const val = nameInput.value.trim();
+      if (val) localStorage.setItem('userName', val);
+      else localStorage.removeItem('userName');
+      // Update greeting live if home screen is visible
+      const homeNameEl = document.getElementById('home-name');
+      if (homeNameEl) homeNameEl.textContent = val || 'there';
+    });
+  }
 
   // Version from main process
   try {
