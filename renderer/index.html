@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com;" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Macro Manager</title>
+</head>
+<body>
+  <div class="titlebar-drag"></div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <h1 class="app-title">Macro Manager</h1>
+      <div class="listener-status" id="listener-status">
+        <span class="listener-dot"></span>
+        <span class="listener-label">Listener active</span>
+      </div>
+
+      <div class="search-wrap">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search" placeholder="Search macros..." autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="section-label">My Macros</div>
+    <ul id="macro-list"></ul>
+
+    <div class="defaults-nav-wrap">
+      <div class="defaults-nav-divider"></div>
+      <button id="nav-defaults" class="nav-defaults-item">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l10-5 10 5-10 5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/></svg>
+        <span>Default Snippets</span>
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="footer-bottom-row">
+        <button id="btn-prefix" class="btn-prefix" data-tooltip="Change trigger prefix">
+          <span class="prefix-icon"><span id="prefix-key" class="prefix-key">/</span></span>
+          <span class="prefix-label">Change prefix</span>
+        </button>
+        <button id="btn-settings" class="btn-settings">
+          <svg class="settings-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+      <div class="footer-divider"></div>
+      <button id="btn-new" class="btn-new" data-tooltip="Add a new macro">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Macro
+      </button>
+    </div>
+  </aside>
+
+  <!-- Editor / Right Panel -->
+  <main id="editor">
+    <!-- Empty state -->
+    <div id="editor-empty">
+      <p>Select a macro or create a new one</p>
+    </div>
+
+    <!-- Editable macro form -->
+    <div id="editor-form" class="hidden">
+      <!-- Fixed header -->
+      <div class="editor-header" id="editor-header">
+        <div class="editor-title-row">
+          <h2 class="editor-heading" id="editor-heading">Untitled</h2>
+          <span class="editor-subtitle" id="editor-subtitle">/abbr</span>
+        </div>
+      </div>
+
+      <!-- Scrollable form area -->
+      <div class="form-scroll">
+        <div class="form-row">
+          <label for="field-title">Title</label>
+          <input type="text" id="field-title" placeholder="My Macro" autocomplete="off" />
+        </div>
+
+        <div class="form-row">
+          <label for="field-abbr">Abbreviation</label>
+          <div class="abbr-wrap">
+            <span id="prefix-badge" class="prefix-badge" data-tooltip="Your trigger prefix">/</span>
+            <input type="text" id="field-abbr" placeholder="abbr" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="form-row content-row">
+          <label>Content</label>
+          <div class="toolbar">
+            <button class="tool-btn" data-cmd="bold" data-tooltip="Bold"><b>B</b></button>
+            <button class="tool-btn" data-cmd="italic" data-tooltip="Italic"><i>I</i></button>
+            <button class="tool-btn" data-cmd="underline" data-tooltip="Underline"><u>U</u></button>
+          </div>
+          <div class="content-wrap">
+            <div id="field-content" class="content-editor" contenteditable="true" spellcheck="true"></div>
+            <button id="btn-copy" class="btn-copy" data-tooltip="Copy">
+              <span class="copy-icon">&#9112;</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pinned bottom bar -->
+      <div class="form-bottom">
+        <button id="btn-save" class="btn btn-primary" data-tooltip="Save changes">Save</button>
+        <button id="btn-delete" class="btn-icon-delete" data-tooltip="Delete this macro">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Default Snippets full page -->
+    <div id="defaults-page" class="hidden">
+      <div class="defaults-page-header">
+        <h2 class="defaults-page-title">Default Snippets</h2>
+        <p class="defaults-page-subtitle">Read-only macros built into Macro Manager</p>
+      </div>
+      <div class="defaults-page-divider"></div>
+      <div id="defaults-page-list" class="defaults-page-list"></div>
+    </div>
+  </main>
+
+  <!-- Prefix change modal -->
+  <div id="prefix-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-title">Press a key...</div>
+      <div class="modal-desc">Type any non-alphanumeric character to set as your trigger prefix.</div>
+      <button class="modal-cancel" id="prefix-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Delete confirmation modal -->
+  <div id="delete-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-title">Delete this macro?</div>
+      <div class="modal-desc">This action cannot be undone.</div>
+      <div class="modal-actions">
+        <button id="delete-confirm" class="btn btn-danger">Delete</button>
+        <button id="delete-cancel" class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings popover -->
+  <div id="settings-popover" class="settings-popover">
+    <div class="settings-section-label">Appearance</div>
+    <div class="settings-row">
+      <span class="settings-row-label">Dark mode</span>
+      <button id="settings-theme-toggle" class="settings-toggle on" aria-label="Toggle dark mode">
+        <span class="settings-toggle-knob"></span>
+      </button>
+    </div>
+    <div class="settings-section-divider"></div>
+    <div class="settings-section-label">About</div>
+    <div class="settings-about" id="settings-version">Macro Manager v1.0.0</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
