@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, globalShortcut, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, globalShortcut, dialog, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { uIOhook, UiohookKey } = require('uiohook-napi');
@@ -151,8 +151,9 @@ const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Satur
 const DEFAULT_RESOLVERS = {
   ts: () => {
     const d = new Date();
-    const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
-    return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    let h = d.getHours(), ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${h}:${String(d.getMinutes()).padStart(2,'0')} ${ampm}`;
   },
   date: () => {
     const d = new Date();
@@ -164,13 +165,13 @@ const DEFAULT_RESOLVERS = {
   },
   time: () => {
     const d = new Date();
-    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-  },
-  time12: () => {
-    const d = new Date();
     let h = d.getHours(), ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12 || 12;
     return `${h}:${String(d.getMinutes()).padStart(2,'0')} ${ampm}`;
+  },
+  time24: () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
   },
   day: () => {
     const d = new Date();
@@ -387,6 +388,8 @@ ipcMain.handle('app:version', () => app.getVersion());
 // Window
 // ---------------------------------------------------------------------------
 let mainWindow;
+let tray = null;
+let isQuitting = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -405,6 +408,96 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Hide instead of close — app keeps running in tray
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+      if (process.platform === 'darwin') app.dock.hide();
+    }
+  });
+}
+
+function showWindow() {
+  if (!mainWindow) {
+    createWindow();
+  } else {
+    mainWindow.show();
+  }
+  if (process.platform === 'darwin') app.dock.show();
+}
+
+function toggleWindow() {
+  if (mainWindow && mainWindow.isVisible()) {
+    mainWindow.hide();
+    if (process.platform === 'darwin') app.dock.hide();
+  } else {
+    showWindow();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tray
+// ---------------------------------------------------------------------------
+function createTrayIcon() {
+  // 16x16 monochrome "M" icon as a base64 PNG
+  // Generated: white M on transparent background
+  const iconBase64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA'
+    + 'XklEQVR4nGNgGAWDATAiC/z//5/h////DPgMYEQX+P//P8P///8Z'
+    + 'cBnAiMuF/0E0AxZNjMgC/6EYqx5GbIHx////DLhcyIhLgAGJBgBc'
+    + 'ZCER2EIB3UtiAACvGyAR3tNGJQAAAABJRU5ErkJggg==';
+
+  let trayImage;
+  if (process.platform === 'darwin') {
+    trayImage = nativeImage.createFromDataURL(`data:image/png;base64,${iconBase64}`);
+    trayImage.setTemplateImage(true);
+  } else {
+    trayImage = nativeImage.createFromDataURL(`data:image/png;base64,${iconBase64}`);
+  }
+
+  tray = new Tray(trayImage);
+  tray.setToolTip('Macro Manager');
+
+  // Left-click toggles window
+  tray.on('click', () => toggleWindow());
+
+  updateTrayMenu();
+}
+
+function updateTrayMenu() {
+  const loginEnabled = app.getLoginItemSettings().openAtLogin;
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open Macro Manager',
+      click: () => showWindow(),
+    },
+    { type: 'separator' },
+    {
+      label: `Listener: ${listening ? 'Active ✓' : 'Inactive'}`,
+      enabled: false,
+    },
+    { type: 'separator' },
+    {
+      label: 'Launch at Login',
+      type: 'checkbox',
+      checked: loginEnabled,
+      click: (menuItem) => {
+        app.setLoginItemSettings({ openAtLogin: menuItem.checked });
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
 }
 
 // ---------------------------------------------------------------------------
@@ -412,18 +505,28 @@ function createWindow() {
 // ---------------------------------------------------------------------------
 app.whenReady().then(() => {
   createWindow();
+  createTrayIcon();
   uIOhook.start();
 
+  // Global shortcut to toggle window: Cmd+Shift+M (Mac) / Ctrl+Shift+M (Win)
+  const shortcut = process.platform === 'darwin' ? 'CommandOrControl+Shift+M' : 'Ctrl+Shift+M';
+  globalShortcut.register(shortcut, () => toggleWindow());
+
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    showWindow();
   });
 });
 
+// Prevent app from quitting when all windows are closed — it lives in the tray
 app.on('window-all-closed', () => {
-  uIOhook.stop();
-  if (process.platform !== 'darwin') app.quit();
+  // Do nothing — keep running in tray
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
 });
 
 app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
   uIOhook.stop();
 });

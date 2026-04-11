@@ -20,7 +20,7 @@
       <h1 class="app-title">Macro Manager</h1>
       <div class="listener-status" id="listener-status">
         <span class="listener-dot"></span>
-        <span class="listener-label">Listener active</span>
+        <span class="listener-label">Listener Active</span>
       </div>
 
       <div class="search-divider"></div>
@@ -45,7 +45,7 @@
       <div class="footer-bottom-row">
         <button id="btn-prefix" class="btn-prefix" data-tooltip="Change trigger prefix">
           <span class="prefix-icon"><span id="prefix-key" class="prefix-key">/</span></span>
-          <span class="prefix-label">Change prefix</span>
+          <span class="prefix-label">Change Prefix</span>
         </button>
         <button id="btn-settings" class="btn-settings">
           <svg class="settings-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -66,35 +66,35 @@
 
         <!-- Greeting -->
         <div class="home-header">
-          <h1 class="home-greeting">hey, <span id="home-name">there</span> 👋</h1>
-          <p class="home-subtitle">here's how your macros are doing</p>
+          <h1 class="home-greeting">Hey, <span id="home-name">there</span> 👋</h1>
+          <p class="home-subtitle">Here's how your macros are doing</p>
         </div>
 
         <!-- Stats row -->
         <div class="home-stats-row">
           <div class="stat-card">
             <div class="stat-value" id="stat-total">—</div>
-            <div class="stat-label">macros created</div>
+            <div class="stat-label">Macros Created</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" id="stat-expansions">—</div>
-            <div class="stat-label">total expansions</div>
+            <div class="stat-label">Total Expansions</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" id="stat-top-name">—</div>
-            <div class="stat-label" id="stat-top-label">most used</div>
+            <div class="stat-label" id="stat-top-label">Most Used</div>
           </div>
         </div>
 
         <!-- Top macros -->
         <div class="home-section">
-          <div class="home-section-title">your most used</div>
+          <div class="home-section-title">Your Most Used</div>
           <div id="home-top-macros" class="home-top-macros"></div>
         </div>
 
         <!-- Quick access -->
         <div class="home-section">
-          <div class="home-section-title">quick insert</div>
+          <div class="home-section-title">Quick Insert</div>
           <div id="home-quick-row" class="home-quick-row"></div>
         </div>
 
@@ -185,9 +185,9 @@
   <div id="prefix-modal" class="modal-overlay hidden">
     <div class="modal prefix-modal">
       <div class="modal-prefix-badge" id="modal-prefix-display">/</div>
-      <div class="prefix-modal-title">pick your trigger</div>
-      <div class="prefix-modal-desc">type any symbol to set it as your shortcut prefix. something like / ; or . works great</div>
-      <button class="modal-cancel" id="prefix-cancel">cancel</button>
+      <div class="prefix-modal-title">Choose a Trigger Key</div>
+      <div class="prefix-modal-desc">Tap any symbol key to set your expansion trigger. Popular choices: &nbsp;/&nbsp; &nbsp;;&nbsp; &nbsp;.</div>
+      <button class="modal-cancel" id="prefix-cancel">Cancel</button>
     </div>
   </div>
 

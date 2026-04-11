@@ -5,12 +5,13 @@ const DEFAULT_SNIPPETS = [
   {
     title: 'Full Timestamp',
     abbr: 'ts',
-    desc: 'Current date + time',
+    desc: 'Month D, YYYY H:MM AM/PM',
     resolve: () => {
       const d = new Date();
       const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-      const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
-      return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      let h = d.getHours(), ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${h}:${String(d.getMinutes()).padStart(2,'0')} ${ampm}`;
     },
   },
   {
@@ -32,23 +33,23 @@ const DEFAULT_SNIPPETS = [
     },
   },
   {
-    title: 'Time Only',
+    title: 'Time',
     abbr: 'time',
-    desc: '24-hour time',
-    resolve: () => {
-      const d = new Date();
-      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-    },
-  },
-  {
-    title: '12hr Time',
-    abbr: 'time12',
-    desc: '12-hour format',
+    desc: '12-hour time',
     resolve: () => {
       const d = new Date();
       let h = d.getHours(), ampm = h >= 12 ? 'PM' : 'AM';
       h = h % 12 || 12;
       return `${h}:${String(d.getMinutes()).padStart(2,'0')} ${ampm}`;
+    },
+  },
+  {
+    title: '24hr Time',
+    abbr: 'time24',
+    desc: '24-hour time',
+    resolve: () => {
+      const d = new Date();
+      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
     },
   },
   {
@@ -78,6 +79,11 @@ let selectedIndex = -1;
 let isDark = true;          // true = dark mode (default)
 let showingDefaults = false;
 let settingsOpen = false;
+
+// Shared JS-driven tooltip — one element reused for all macro list items
+const tooltip = document.createElement('div');
+tooltip.className = 'macro-preview-tooltip';
+document.body.appendChild(tooltip);
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -158,7 +164,7 @@ function renderDefaultsPage() {
   // Category label
   const catLabel = document.createElement('div');
   catLabel.className = 'defaults-category';
-  catLabel.textContent = 'Date & Time';
+  catLabel.textContent = 'Date & Time'; // intentional mixed-case section label
   defaultsPageList.appendChild(catLabel);
 
   DEFAULT_SNIPPETS.forEach((snippet) => {
@@ -197,18 +203,31 @@ function renderList(filter = '') {
 
     if (!matchesFilter) return;
 
+    const preview = stripHtml(macro.content).replace(/\n/g, ' ').trim();
+    const tooltipText = preview.length > 80
+      ? preview.slice(0, 80) + '\u2026'
+      : preview;
+
     const li = document.createElement('li');
     li.className = 'macro-item' + (i === selectedIndex ? ' active' : '');
-
-    const preview = stripHtml(macro.content).replace(/\n/g, ' ').trim();
-    if (preview.length > 0) {
-      li.setAttribute('data-tooltip', preview.length > 80 ? preview.slice(0, 80) + '\u2026' : preview);
-    }
-
     li.innerHTML = `
       <span class="macro-title">${escHtml(macro.title || 'Untitled')}</span>
       <span class="macro-abbr">${escHtml(data.prefix + macro.abbr)}</span>
     `;
+
+    if (tooltipText) {
+      li.addEventListener('mouseenter', () => {
+        tooltip.textContent = tooltipText;
+        tooltip.classList.add('visible');
+        const rect = li.getBoundingClientRect();
+        tooltip.style.top  = (rect.top + rect.height / 2) + 'px';
+        tooltip.style.left = (rect.right + 12) + 'px';
+      });
+      li.addEventListener('mouseleave', () => {
+        tooltip.classList.remove('visible');
+      });
+    }
+
     li.addEventListener('click', () => selectMacro(i));
     macroList.appendChild(li);
   });
@@ -279,10 +298,10 @@ async function renderHomeScreen() {
   const topMacro = topAbbr ? data.snippets.find((s) => s.abbr === topAbbr) : null;
   if (topMacro) {
     document.getElementById('stat-top-name').textContent = topMacro.title || topMacro.abbr;
-    document.getElementById('stat-top-label').textContent = `${topCount}× · most used`;
+    document.getElementById('stat-top-label').textContent = `${topCount}× · Most Used`;
   } else {
     document.getElementById('stat-top-name').textContent = '—';
-    document.getElementById('stat-top-label').textContent = 'most used';
+    document.getElementById('stat-top-label').textContent = 'Most Used';
   }
 
   // Top 5 macros list
@@ -293,7 +312,7 @@ async function renderHomeScreen() {
   if (sorted.length === 0) {
     const hint = document.createElement('div');
     hint.className = 'home-empty-hint';
-    hint.textContent = 'trigger your first macro to see stats here';
+    hint.textContent = 'Trigger your first macro to see stats here';
     topMacrosEl.appendChild(hint);
   } else {
     const maxCount = sorted[0][1];

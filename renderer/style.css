@@ -92,7 +92,8 @@ body { display: flex; }
   border-right: 1px solid var(--border);
   user-select: none;
   -webkit-app-region: no-drag;
-  overflow-x: hidden;
+  overflow: visible;
+  overflow-x: visible;  /* allow tooltips to escape sidebar */
 }
 
 .sidebar-header {
@@ -215,7 +216,7 @@ body { display: flex; }
 #macro-list {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: visible;
   list-style: none;
   padding: 2px 8px;
   max-width: 100%;
@@ -233,7 +234,7 @@ body { display: flex; }
   transition: background var(--transition);
   position: relative;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;  /* was: hidden — this was clipping tooltips */
 }
 .macro-item:hover { background: var(--surface); }
 .macro-item.active { background: var(--accent); color: #fff; }
@@ -1207,22 +1208,29 @@ body { display: flex; }
   transition-delay: 400ms;
 }
 
-/* Sidebar items: tooltip appears to the right */
-.macro-item[data-tooltip]::after {
-  bottom: auto;
-  left: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%) scale(0.95);
-  max-width: 240px;
-  white-space: normal;
-  word-break: break-word;
+/* JS-driven sidebar tooltip — position:fixed, placed by mouseenter */
+.macro-preview-tooltip {
+  position: fixed;
+  transform: translateY(-50%);
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  color: #ddd;
   font-family: 'Courier New', monospace;
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: 8px;
+  max-width: 260px;
+  white-space: normal;
+  word-break: break-word;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  z-index: 9999;
 }
-.macro-item[data-tooltip]:hover::after {
-  transform: translateY(-50%) scale(1);
-  transition-delay: 400ms;
+.macro-preview-tooltip.visible {
+  opacity: 1;
 }
 
 /* ------------------------------------------------------------------ */
