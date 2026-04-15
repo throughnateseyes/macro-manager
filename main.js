@@ -397,6 +397,7 @@ function createWindow() {
     height: 640,
     minWidth: 700,
     minHeight: 480,
+    show: true,
     backgroundColor: '#1e1e1e',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
@@ -409,12 +410,18 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
-  // Hide instead of close — app keeps running in tray
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
+  // macOS: hide instead of close — app keeps running in tray
+  // Windows: let the window close and quit normally
   mainWindow.on('close', (e) => {
-    if (!isQuitting) {
+    if (process.platform === 'darwin' && !isQuitting) {
       e.preventDefault();
       mainWindow.hide();
-      if (process.platform === 'darwin') app.dock.hide();
+      app.dock.hide();
     }
   });
 }
@@ -441,28 +448,32 @@ function toggleWindow() {
 // Tray
 // ---------------------------------------------------------------------------
 function createTrayIcon() {
-  // 16x16 monochrome "M" icon as a base64 PNG
-  // Generated: white M on transparent background
-  const iconBase64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA'
-    + 'XklEQVR4nGNgGAWDATAiC/z//5/h////DPgMYEQX+P//P8P///8Z'
-    + 'cBnAiMuF/0E0AxZNjMgC/6EYqx5GbIHx////DLhcyIhLgAGJBgBc'
-    + 'ZCER2EIB3UtiAACvGyAR3tNGJQAAAABJRU5ErkJggg==';
+  try {
+    // 16x16 monochrome "M" icon as a base64 PNG
+    // Generated: white M on transparent background
+    const iconBase64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA'
+      + 'XklEQVR4nGNgGAWDATAiC/z//5/h////DPgMYEQX+P//P8P///8Z'
+      + 'cBnAiMuF/0E0AxZNjMgC/6EYqx5GbIHx////DLhcyIhLgAGJBgBc'
+      + 'ZSER2EIB3UtiAACvGyAR3tNGJQAAAABJRU5ErkJggg==';
 
-  let trayImage;
-  if (process.platform === 'darwin') {
-    trayImage = nativeImage.createFromDataURL(`data:image/png;base64,${iconBase64}`);
-    trayImage.setTemplateImage(true);
-  } else {
-    trayImage = nativeImage.createFromDataURL(`data:image/png;base64,${iconBase64}`);
+    let trayImage;
+    if (process.platform === 'darwin') {
+      trayImage = nativeImage.createFromDataURL(`data:image/png;base64,${iconBase64}`);
+      trayImage.setTemplateImage(true);
+    } else {
+      trayImage = nativeImage.createFromDataURL(`data:image/png;base64,${iconBase64}`);
+    }
+
+    tray = new Tray(trayImage);
+    tray.setToolTip('Macro Manager');
+
+    // Left-click toggles window
+    tray.on('click', () => toggleWindow());
+
+    updateTrayMenu();
+  } catch (e) {
+    console.log('Tray icon not available:', e.message);
   }
-
-  tray = new Tray(trayImage);
-  tray.setToolTip('Macro Manager');
-
-  // Left-click toggles window
-  tray.on('click', () => toggleWindow());
-
-  updateTrayMenu();
 }
 
 function updateTrayMenu() {
@@ -558,9 +569,12 @@ app.whenReady().then(() => {
   });
 });
 
-// Prevent app from quitting when all windows are closed — it lives in the tray
+// macOS: keep running in tray when window is closed
+// Windows: quit the app when the window is closed
 app.on('window-all-closed', () => {
-  // Do nothing — keep running in tray
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
 
 app.on('before-quit', () => {
