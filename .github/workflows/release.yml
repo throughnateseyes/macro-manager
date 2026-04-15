@@ -66,6 +66,11 @@ jobs:
         with:
           node-version: 20
 
+      # node-gyp requires distutils; Python 3.12 removed it — pin to 3.11
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
         run: npm ci
 
