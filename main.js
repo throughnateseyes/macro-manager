@@ -528,33 +528,37 @@ function initAutoUpdater() {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on('update-downloaded', () => {
-      dialog.showMessageBox({
-        type: 'info',
-        title: 'Update Ready',
-        message: 'A new version of Macro Manager is ready to install.',
-        detail: 'Restart now to apply the update, or it will be applied next time you launch.',
-        buttons: ['Restart Now', 'Later'],
-        defaultId: 0,
-        cancelId: 1,
-      }).then(({ response }) => {
-        if (response === 0) {
-          isQuitting = true;
-          autoUpdater.quitAndInstall();
-        }
-      });
+    autoUpdater.on('update-available', (info) => {
+      console.log('[updater] Update available:', info.version);
+      if (mainWindow) mainWindow.webContents.send('update-available', info.version);
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('[updater] Update downloaded:', info.version);
+      if (mainWindow) mainWindow.webContents.send('update-downloaded', info.version);
     });
 
     autoUpdater.on('error', (err) => {
       console.error('[updater]', err.message);
     });
 
-    // Delay check by 5s so the app fully launches before network activity
-    setTimeout(() => autoUpdater.checkForUpdates(), 5000);
+    // Check 3s after launch, then every 2 hours
+    setTimeout(() => autoUpdater.checkForUpdates(), 3000);
+    setInterval(() => autoUpdater.checkForUpdates(), 2 * 60 * 60 * 1000);
   } catch (e) {
     console.log('Auto updater not available:', e.message);
   }
 }
+
+ipcMain.on('install-update', () => {
+  try {
+    const { autoUpdater } = require('electron-updater');
+    isQuitting = true;
+    autoUpdater.quitAndInstall();
+  } catch (e) {
+    console.error('[updater] install-update failed:', e.message);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // App lifecycle

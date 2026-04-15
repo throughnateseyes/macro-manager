@@ -722,4 +722,32 @@ function stripHtml(html) {
     const v = await window.macroAPI.version();
     settingsVersion.textContent = `Macro Manager v${v}`;
   } catch { /* fallback already set in HTML */ }
+
+  // Auto-update notifications
+  function showUpdateBanner(message, showRestart) {
+    // Remove any existing banner first
+    document.querySelector('.update-banner')?.remove();
+
+    const banner = document.createElement('div');
+    banner.className = 'update-banner';
+    banner.innerHTML = `
+      <span>${message}</span>
+      ${showRestart ? '<button id="restart-btn">Restart Now</button>' : ''}
+    `;
+    document.body.appendChild(banner);
+
+    if (showRestart) {
+      document.getElementById('restart-btn').addEventListener('click', () => {
+        window.macroAPI.installUpdate();
+      });
+    }
+  }
+
+  window.macroAPI.onUpdateAvailable((version) => {
+    showUpdateBanner(`Update v${version} downloading...`, false);
+  });
+
+  window.macroAPI.onUpdateDownloaded((version) => {
+    showUpdateBanner(`v${version} ready \u2014 restart to update`, true);
+  });
 })();

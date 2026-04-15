@@ -11,4 +11,7 @@ contextBridge.exposeInMainWorld('macroAPI', {
   exportMacros:    () => ipcRenderer.invoke('macros:export'),
   importMacros:    () => ipcRenderer.invoke('macros:import'),
   platform: process.platform,
+  onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_e, version) => cb(version)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_e, version) => cb(version)),
+  installUpdate: () => ipcRenderer.send('install-update'),
 });
