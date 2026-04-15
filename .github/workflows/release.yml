@@ -4,12 +4,20 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to upload .exe to (e.g. v1.0.4)'
+        required: false
+        default: 'v1.0.4'
 
 permissions:
   contents: write
 
 jobs:
+  # ── Mac DMG build — only on tag push (already uploaded for v1.0.4) ──────────
   build-mac:
+    if: github.event_name == 'push'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,9 +54,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-artifacts
-          path: |
-            release/*.dmg
+          path: release/*.dmg
 
+  # ── Windows NSIS build — runs on both tag push and workflow_dispatch ─────────
   build-win:
     runs-on: windows-latest
     steps:
@@ -66,15 +74,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:win
 
-      - name: Upload Windows artifacts
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: win-artifacts
-          path: |
-            release/*.exe
+          path: release/*.exe
 
-  release:
+  # ── Create new release (tag push only) ─────────────────────────────────────
+  release-new:
     needs: [build-mac, build-win]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Download Mac artifacts
@@ -96,3 +105,24 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Upload .exe to existing release (workflow_dispatch only) ─────────────────
+  release-upload:
+    needs: [build-win]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: win-artifacts
+          path: dist/
+
+      - name: Upload .exe to existing release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          gh release upload "$VERSION" dist/*.exe \
+            --repo ${{ github.repository }} \
+            --clobber
