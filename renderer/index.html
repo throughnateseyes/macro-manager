@@ -18,12 +18,6 @@
   <aside id="sidebar">
     <div class="sidebar-header">
       <h1 class="app-title">Macro Manager</h1>
-      <div class="listener-status" id="listener-status">
-        <span class="listener-dot"></span>
-        <span class="listener-label">Listener Active</span>
-      </div>
-
-      <div class="search-divider"></div>
       <div class="search-wrap">
         <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" id="search" placeholder="Search macros..." autocomplete="off" />
@@ -64,23 +58,23 @@
     <div id="editor-empty">
       <div class="home-screen">
 
-        <!-- Greeting -->
-        <div class="home-header">
-          <h1 class="home-greeting">Hey, <span id="home-name">there</span> 👋</h1>
-          <p class="home-subtitle">Here's how your macros are doing</p>
-        </div>
+        <!-- Date header -->
+        <div id="home-date" class="stats-date-header"></div>
 
         <!-- Stats row -->
         <div class="home-stats-row">
-          <div class="stat-card">
+          <div class="stat-card stat-card--macros">
+            <span class="stat-dot"></span>
             <div class="stat-value" id="stat-total">—</div>
             <div class="stat-label">Macros Created</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card stat-card--expansions">
+            <span class="stat-dot"></span>
             <div class="stat-value" id="stat-expansions">—</div>
             <div class="stat-label">Total Expansions</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card stat-card--top">
+            <span class="stat-dot"></span>
             <div class="stat-value" id="stat-top-name">—</div>
             <div class="stat-label" id="stat-top-label">Most Used</div>
           </div>

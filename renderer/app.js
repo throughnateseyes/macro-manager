@@ -85,6 +85,22 @@ const tooltip = document.createElement('div');
 tooltip.className = 'macro-preview-tooltip';
 document.body.appendChild(tooltip);
 
+// Global cursor-following logic for the shared tooltip
+document.addEventListener('mousemove', (e) => {
+  if (!tooltip.classList.contains('visible')) return;
+  const margin = 12;
+  let x = e.clientX + 16;
+  let y = e.clientY - 8;
+  // Clamp so it never escapes the viewport
+  const tw = tooltip.offsetWidth;
+  const th = tooltip.offsetHeight;
+  if (x + tw > window.innerWidth  - margin) x = e.clientX - tw - 16;
+  if (y - th < margin)                       y = e.clientY + 24;
+  tooltip.style.left      = x + 'px';
+  tooltip.style.top       = y + 'px';
+  tooltip.style.transform = 'translateY(-100%)';
+});
+
 // ---------------------------------------------------------------------------
 // DOM refs
 // ---------------------------------------------------------------------------
@@ -115,7 +131,6 @@ const btnExport         = document.getElementById('btn-export');
 const btnExportLabel    = document.getElementById('btn-export-label');
 const btnImport         = document.getElementById('btn-import');
 const btnImportLabel    = document.getElementById('btn-import-label');
-const listenerStatus    = document.getElementById('listener-status');
 const navDefaults       = document.getElementById('nav-defaults');
 
 // Modals
@@ -219,9 +234,6 @@ function renderList(filter = '') {
       li.addEventListener('mouseenter', () => {
         tooltip.textContent = tooltipText;
         tooltip.classList.add('visible');
-        const rect = li.getBoundingClientRect();
-        tooltip.style.top  = (rect.top + rect.height / 2) + 'px';
-        tooltip.style.left = (rect.right + 12) + 'px';
       });
       li.addEventListener('mouseleave', () => {
         tooltip.classList.remove('visible');
@@ -275,9 +287,8 @@ function showEmpty() {
 // Home screen
 // ---------------------------------------------------------------------------
 async function renderHomeScreen() {
-  // Name greeting
-  const name = localStorage.getItem('userName') || 'there';
-  document.getElementById('home-name').textContent = name;
+  // Workspace header
+  document.getElementById('home-date').textContent = 'Your Workspace';
 
   // Stats — total macros
   document.getElementById('stat-total').textContent = data.snippets.length;
@@ -332,6 +343,19 @@ async function renderHomeScreen() {
         </div>
         <span class="top-macro-count">${count}</span>
       `;
+
+      if (macro && macro.content) {
+        const preview = stripHtml(macro.content).replace(/\n/g, ' ').trim();
+        const tooltipText = preview.length > 80 ? preview.slice(0, 80) + '\u2026' : preview;
+        if (tooltipText) {
+          row.addEventListener('mouseenter', () => {
+            tooltip.textContent = tooltipText;
+            tooltip.classList.add('visible');
+          });
+          row.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+        }
+      }
+
       topMacrosEl.appendChild(row);
     });
   }
@@ -355,6 +379,13 @@ async function renderHomeScreen() {
         setTimeout(() => card.classList.remove('copied'), 1200);
       });
     });
+
+    card.addEventListener('mouseenter', () => {
+      tooltip.textContent = snippet.resolve();
+      tooltip.classList.add('visible');
+    });
+    card.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+
     quickRow.appendChild(card);
   });
 }
@@ -518,23 +549,6 @@ function closeSettings() {
 
 // ---------------------------------------------------------------------------
 // Listener status
-// ---------------------------------------------------------------------------
-async function checkListenerStatus() {
-  try {
-    const status = await window.macroAPI.getListenerStatus();
-    const dot = listenerStatus.querySelector('.listener-dot');
-    const label = listenerStatus.querySelector('.listener-label');
-    if (status) {
-      dot.style.background = 'var(--success)';
-      label.textContent = 'Listener active';
-    } else {
-      dot.style.background = '#e0a030';
-      label.textContent = 'Listener inactive';
-    }
-  } catch {
-    // API not available (e.g. running outside Electron)
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Live header update while typing
@@ -697,8 +711,6 @@ function stripHtml(html) {
   data = await window.macroAPI.load();
   updatePrefixDisplay();
   renderList();
-  checkListenerStatus();
-  setInterval(checkListenerStatus, 5000);
 
   // Home screen — render after data is loaded
   renderHomeScreen();
@@ -711,9 +723,6 @@ function stripHtml(html) {
       const val = nameInput.value.trim();
       if (val) localStorage.setItem('userName', val);
       else localStorage.removeItem('userName');
-      // Update greeting live if home screen is visible
-      const homeNameEl = document.getElementById('home-name');
-      if (homeNameEl) homeNameEl.textContent = val || 'there';
     });
   }
 
