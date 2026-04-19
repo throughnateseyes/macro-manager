@@ -133,23 +133,20 @@
         </div>
 
         <div class="form-row content-row">
-          <div class="content-row-header">
-            <label>Content</label>
-            <div class="toolbar-copy-row">
-              <div class="toolbar">
+          <label>Content</label>
+          <div class="content-card">
+            <div class="content-toolbar">
+              <div class="content-toolbar-left">
                 <button class="tool-btn" data-cmd="bold" data-tooltip="Bold"><b>B</b></button>
                 <button class="tool-btn" data-cmd="italic" data-tooltip="Italic"><i>I</i></button>
                 <button class="tool-btn" data-cmd="underline" data-tooltip="Underline"><u>U</u></button>
               </div>
-              <button id="btn-copy" class="btn-copy">
+              <button id="btn-copy" class="btn-copy" data-tooltip="Copy to clipboard">
                 <span class="copy-icon">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M17 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
                 </span>
-                <span class="copy-label">Copy</span>
               </button>
             </div>
-          </div>
-          <div class="content-wrap">
             <div id="field-content" class="content-editor" contenteditable="true" spellcheck="true"></div>
           </div>
         </div>

@@ -86,8 +86,10 @@ tooltip.className = 'macro-preview-tooltip';
 document.body.appendChild(tooltip);
 
 // Global cursor-following logic for the shared tooltip
+// When tooltip.dataset.fixed is set, positioning is handled by the caller instead
 document.addEventListener('mousemove', (e) => {
   if (!tooltip.classList.contains('visible')) return;
+  if (tooltip.dataset.fixed) return;
   const margin = 12;
   let x = e.clientX + 16;
   let y = e.clientY - 8;
@@ -209,10 +211,21 @@ function renderList(filter = '') {
   const q = filter.toLowerCase();
   macroList.innerHTML = '';
 
-  // Update section label with live count
+  // Update section label — filtered count when searching, total otherwise
+  let visibleCount = 0;
+  data.snippets.forEach((macro) => {
+    const matches =
+      !q ||
+      macro.title.toLowerCase().includes(q) ||
+      macro.abbr.toLowerCase().includes(q) ||
+      stripHtml(macro.content).toLowerCase().includes(q);
+    if (matches) visibleCount++;
+  });
   const sectionLabel = document.querySelector('.section-label');
   if (sectionLabel) {
-    sectionLabel.textContent = `My Macros · ${data.snippets.length}`;
+    sectionLabel.textContent = q
+      ? `My Macros · ${visibleCount} of ${data.snippets.length}`
+      : `My Macros · ${data.snippets.length}`;
   }
 
   data.snippets.forEach((macro, i) => {
@@ -325,59 +338,8 @@ async function renderHomeScreen() {
   }
   document.getElementById('stat-time-saved').textContent = totalExp > 0 ? timeSavedText : '—';
 
-  // Top 5 macros list
-  const topMacrosEl = document.getElementById('home-top-macros');
-  topMacrosEl.innerHTML = '';
-  const sorted = Object.entries(usage).sort(([, a], [, b]) => b - a).slice(0, 5);
-
-  if (sorted.length === 0) {
-    const hint = document.createElement('div');
-    hint.className = 'home-empty-hint';
-    hint.textContent = 'Trigger your first macro to see stats here';
-    topMacrosEl.appendChild(hint);
-  } else {
-    const maxCount = sorted[0][1];
-    sorted.forEach(([abbr, count]) => {
-      const macro = data.snippets.find((s) => s.abbr === abbr);
-      const title = macro ? (macro.title || abbr) : abbr;
-      const barPct = Math.round((count / maxCount) * 100);
-      const row = document.createElement('div');
-      row.className = 'top-macro-row';
-      row.innerHTML = `
-        <div class="top-macro-info">
-          <span class="top-macro-title">${escHtml(title)}</span>
-          <span class="top-macro-abbr">${escHtml((data.prefix || '/') + abbr)}</span>
-        </div>
-        <div class="top-macro-bar-wrap">
-          <div class="top-macro-bar" style="width:${barPct}%"></div>
-        </div>
-        <span class="top-macro-count">${count}</span>
-        <span class="top-macro-arrow">›</span>
-      `;
-
-      if (macro) {
-        const macroIndex = data.snippets.findIndex((s) => s.abbr === abbr);
-        if (macroIndex !== -1) {
-          row.classList.add('top-macro-row--clickable');
-          row.addEventListener('click', () => selectMacro(macroIndex));
-        }
-      }
-
-      if (macro && macro.content) {
-        const preview = stripHtml(macro.content).replace(/\n/g, ' ').trim();
-        const tooltipText = preview.length > 80 ? preview.slice(0, 80) + '\u2026' : preview;
-        if (tooltipText) {
-          row.addEventListener('mouseenter', () => {
-            tooltip.textContent = tooltipText;
-            tooltip.classList.add('visible');
-          });
-          row.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
-        }
-      }
-
-      topMacrosEl.appendChild(row);
-    });
-  }
+  // Donut chart
+  renderDonutChart(usage, data.snippets);
 
   // Quick access cards: /ts, /date, /time
   const quickRow = document.getElementById('home-quick-row');
@@ -701,6 +663,220 @@ document.addEventListener('keydown', (e) => {
     addNew();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Donut chart
+// ---------------------------------------------------------------------------
+function describeArc(cx, cy, outerR, innerR, startAngle, endAngle) {
+  const toRad = (deg) => (deg - 90) * Math.PI / 180;
+  const s = toRad(startAngle);
+  const e = toRad(endAngle);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  const p = (n) => n.toFixed(3);
+  const ox1 = cx + outerR * Math.cos(s), oy1 = cy + outerR * Math.sin(s);
+  const ox2 = cx + outerR * Math.cos(e), oy2 = cy + outerR * Math.sin(e);
+  const ix1 = cx + innerR * Math.cos(s), iy1 = cy + innerR * Math.sin(s);
+  const ix2 = cx + innerR * Math.cos(e), iy2 = cy + innerR * Math.sin(e);
+  return `M ${p(ox1)} ${p(oy1)} A ${outerR} ${outerR} 0 ${largeArc} 1 ${p(ox2)} ${p(oy2)} L ${p(ix2)} ${p(iy2)} A ${innerR} ${innerR} 0 ${largeArc} 0 ${p(ix1)} ${p(iy1)} Z`;
+}
+
+function renderDonutChart(usage, snippets) {
+  const container = document.getElementById('home-top-macros');
+  container.innerHTML = '';
+
+  const COLORS = ['#5c5fef', '#4caf82', '#f59e0b', '#8b5cf6', '#ef4444', '#6b7280'];
+  const NS = 'http://www.w3.org/2000/svg';
+  const CX = 100, CY = 100, OR = 88, IR = 55, GAP = 2; // IR = 62% of OR
+
+  const allSorted = Object.entries(usage).sort(([, a], [, b]) => b - a);
+  const total = allSorted.reduce((s, [, n]) => s + n, 0);
+
+  // Empty state
+  if (total === 0) {
+    const card = document.createElement('div');
+    card.className = 'donut-wrapper donut-empty-state';
+    // Ghost ring: midpoint radius = (88+55)/2 = 71.5, thickness = 33
+    card.innerHTML = `
+      <svg width="200" height="200" viewBox="0 0 200 200" class="donut-svg">
+        <circle cx="100" cy="100" r="71.5" fill="none" stroke="currentColor"
+          stroke-width="33" stroke-dasharray="6 5" opacity="0.12"/>
+      </svg>
+      <p class="donut-empty-text">Start using macros to see your stats here</p>
+    `;
+    container.appendChild(card);
+    return;
+  }
+
+  const top5 = allSorted.slice(0, 5);
+  const restCount = allSorted.slice(5).reduce((s, [, n]) => s + n, 0);
+  const segments = top5.map(([abbr, count], i) => {
+    const macro = snippets.find((s) => s.abbr === abbr);
+    const pct   = Math.round((count / total) * 100);
+    return { abbr, count, pct, macro, color: COLORS[i], title: macro ? (macro.title || abbr) : abbr };
+  });
+  if (restCount > 0) {
+    const pct = Math.round((restCount / total) * 100);
+    segments.push({ abbr: null, count: restCount, pct, macro: null, color: COLORS[5], title: 'Other' });
+  }
+
+  // Wrapper card
+  const wrapper = document.createElement('div');
+  wrapper.className = 'donut-wrapper';
+
+  // SVG
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 200 200');
+  svg.setAttribute('width', '200');
+  svg.setAttribute('height', '200');
+  svg.classList.add('donut-svg');
+
+  // Center text — 3 lines: top (title), mid (abbr/count), bot (label/pct)
+  const mkText = (x, y, cls) => {
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', String(x));
+    t.setAttribute('y', String(y));
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('dominant-baseline', 'middle');
+    t.classList.add(cls);
+    return t;
+  };
+  const centerTop = mkText(100, 84,  'donut-center-top');
+  const centerMid = mkText(100, 97,  'donut-center-mid');
+  const centerBot = mkText(100, 111, 'donut-center-bot');
+
+  const resetCenter = () => {
+    centerTop.textContent = '';
+    centerMid.setAttribute('y', '97');
+    centerMid.style.fill = '';
+    centerMid.textContent = total.toLocaleString();
+    centerBot.setAttribute('y', '111');
+    centerBot.textContent = 'expansions';
+  };
+  resetCenter();
+
+  const setHoverCenter = (seg) => {
+    const prefix    = data.prefix || '/';
+    const abbrLabel = seg.abbr ? prefix + seg.abbr : 'Other';
+    const showTitle = seg.abbr && seg.title && seg.title.length <= 10;
+    if (showTitle) {
+      centerTop.textContent = seg.title;
+      centerMid.setAttribute('y', '99');
+      centerBot.setAttribute('y', '113');
+    } else {
+      centerTop.textContent = '';
+      centerMid.setAttribute('y', '97');
+      centerBot.setAttribute('y', '111');
+    }
+    centerMid.style.fill = '#5c5fef';
+    centerMid.textContent = abbrLabel;
+    centerBot.textContent = seg.pct + '%';
+  };
+
+  // Shared helpers
+  const highlightSegs = (i) => {
+    pathEls.forEach((p, j) => {
+      p.style.opacity   = j === i ? '1' : '0.3';
+      p.style.transform = j === i ? 'scale(1.05)' : 'scale(1)';
+    });
+  };
+  const resetSegs = () => {
+    pathEls.forEach((p) => { p.style.opacity = '1'; p.style.transform = 'scale(1)'; });
+  };
+
+  // Build segments
+  const pathEls = [];
+  let startAngle = 0;
+  const numSegs = segments.length;
+
+  segments.forEach((seg, i) => {
+    const sliceDeg = (seg.count / total) * 360;
+    const halfGap  = numSegs > 1 ? GAP / 2 : 0;
+    const arcStart = startAngle + halfGap;
+    const arcEnd   = startAngle + sliceDeg - halfGap;
+    startAngle += sliceDeg;
+
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', describeArc(CX, CY, OR, IR, arcStart, arcEnd));
+    path.setAttribute('fill', seg.color);
+    path.style.transformOrigin = '100px 100px';
+    path.style.transition = 'opacity 180ms ease, transform 180ms ease';
+    path.style.animation  = `donutIn 420ms cubic-bezier(.34,1.26,.64,1) ${i * 70}ms both`;
+    if (seg.macro) path.style.cursor = 'pointer';
+
+    // Segment hover: update center only — no tooltip
+    path.addEventListener('mouseenter', () => { highlightSegs(i); setHoverCenter(seg); });
+    path.addEventListener('mouseleave', () => { resetSegs(); resetCenter(); });
+
+    if (seg.macro) {
+      path.addEventListener('click', () => {
+        const idx = snippets.findIndex((s) => s.abbr === seg.abbr);
+        if (idx !== -1) selectMacro(idx);
+      });
+    }
+
+    svg.appendChild(path);
+    pathEls.push(path);
+  });
+
+  svg.appendChild(centerTop);
+  svg.appendChild(centerMid);
+  svg.appendChild(centerBot);
+
+  // Legend
+  const legend = document.createElement('div');
+  legend.className = 'donut-legend';
+
+  segments.forEach((seg, i) => {
+    const item = document.createElement('div');
+    item.className = 'donut-legend-item' + (seg.macro ? ' donut-legend-item--clickable' : '');
+    item.innerHTML = `
+      <span class="donut-legend-pct" style="color:${seg.color}">${seg.pct}%</span>
+      <span class="donut-legend-dot" style="background:${seg.color}"></span>
+      <span class="donut-legend-title">${escHtml(seg.title)}</span>
+      <span class="donut-legend-count">${seg.count}</span>
+    `;
+
+    item.addEventListener('mouseenter', () => {
+      highlightSegs(i);
+      setHoverCenter(seg);
+      // Tooltip above the row — fixed positioning (not cursor-following)
+      if (seg.macro && seg.macro.content) {
+        const preview = stripHtml(seg.macro.content).replace(/\n/g, ' ').trim();
+        const text = preview.length > 80 ? preview.slice(0, 80) + '\u2026' : preview;
+        if (text) {
+          tooltip.textContent = text;
+          tooltip.dataset.fixed = '1';
+          const rect = item.getBoundingClientRect();
+          tooltip.style.top       = (rect.top - 12) + 'px';
+          tooltip.style.left      = (rect.left + rect.width / 2) + 'px';
+          tooltip.style.transform = 'translate(-50%, -100%)';
+          tooltip.classList.add('visible');
+        }
+      }
+    });
+    item.addEventListener('mouseleave', () => {
+      resetSegs();
+      resetCenter();
+      tooltip.classList.remove('visible');
+      delete tooltip.dataset.fixed;
+      tooltip.style.transform = '';
+    });
+    if (seg.macro) {
+      item.addEventListener('click', () => {
+        const idx = snippets.findIndex((s) => s.abbr === seg.abbr);
+        if (idx !== -1) selectMacro(idx);
+      });
+    }
+    legend.appendChild(item);
+  });
+
+  const chartArea = document.createElement('div');
+  chartArea.className = 'donut-chart-area';
+  chartArea.appendChild(svg);
+  wrapper.appendChild(chartArea);
+  wrapper.appendChild(legend);
+  container.appendChild(wrapper);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
