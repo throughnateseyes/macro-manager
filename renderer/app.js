@@ -831,9 +831,7 @@ function renderDonutChart(usage, snippets) {
     item.innerHTML = `
       <span class="donut-legend-dot" style="background:${seg.color}"></span>
       <span class="donut-legend-title">${escHtml(seg.title)}</span>
-      <span class="donut-legend-bar-wrap" style="background:${seg.color}40">
-        <span class="donut-legend-bar" style="background:${seg.color}" data-pct="${seg.pct}"></span>
-      </span>
+      <span class="donut-legend-count">${seg.count} uses</span>
       <span class="donut-legend-pct" style="color:${seg.color}">${seg.pct}%</span>
     `;
 
@@ -877,15 +875,6 @@ function renderDonutChart(usage, snippets) {
   wrapper.appendChild(legend);
   container.appendChild(wrapper);
 
-  // Animate legend bars after DOM insertion
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      legend.querySelectorAll('.donut-legend-bar').forEach((bar, i) => {
-        bar.style.transitionDelay = `${i * 100}ms`;
-        bar.style.width = bar.dataset.pct + '%';
-      });
-    });
-  });
 }
 
 // ---------------------------------------------------------------------------

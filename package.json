@@ -7,7 +7,9 @@
     "start": "electron .",
     "build": "electron-builder",
     "build:mac": "electron-builder --mac",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win",
+    "publish:mac": "electron-builder --mac --publish always",
+    "publish:win": "electron-builder --win --publish always"
   },
   "build": {
     "appId": "com.macromanager.app",
