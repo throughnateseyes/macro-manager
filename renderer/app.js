@@ -410,8 +410,10 @@ function requestDelete() {
 async function confirmDelete() {
   deleteModal.classList.add('hidden');
   if (selectedIndex < 0) return;
+  const deletedAbbr = data.snippets[selectedIndex].abbr;
   data.snippets.splice(selectedIndex, 1);
   await persist();
+  if (deletedAbbr) await window.macroAPI.deleteUsage(deletedAbbr);
   showEmpty();
 }
 
@@ -686,16 +688,20 @@ function renderDonutChart(usage, snippets) {
 
   const COLORS = ['#5c5fef', '#4caf82', '#f59e0b', '#8b5cf6', '#ef4444', '#6b7280'];
   const NS = 'http://www.w3.org/2000/svg';
-  const CX = 100, CY = 100, OR = 88, IR = 55, GAP = 2; // IR = 62% of OR
+  const CX = 100, CY = 100, OR = 88, IR = 55, GAP = 2;
 
-  const allSorted = Object.entries(usage).sort(([, a], [, b]) => b - a);
+  const validAbbrs = new Set(snippets.map((s) => s.abbr));
+  const filteredUsage = Object.fromEntries(
+    Object.entries(usage).filter(([abbr]) => validAbbrs.has(abbr))
+  );
+
+  const allSorted = Object.entries(filteredUsage).sort(([, a], [, b]) => b - a);
   const total = allSorted.reduce((s, [, n]) => s + n, 0);
 
   // Empty state
   if (total === 0) {
     const card = document.createElement('div');
     card.className = 'donut-wrapper donut-empty-state';
-    // Ghost ring: midpoint radius = (88+55)/2 = 71.5, thickness = 33
     card.innerHTML = `
       <svg width="200" height="200" viewBox="0 0 200 200" class="donut-svg">
         <circle cx="100" cy="100" r="71.5" fill="none" stroke="currentColor"
@@ -730,7 +736,7 @@ function renderDonutChart(usage, snippets) {
   svg.setAttribute('height', '200');
   svg.classList.add('donut-svg');
 
-  // Center text — 3 lines: top (title), mid (abbr/count), bot (label/pct)
+  // Center text — 2 lines only
   const mkText = (x, y, cls) => {
     const t = document.createElementNS(NS, 'text');
     t.setAttribute('x', String(x));
@@ -740,51 +746,34 @@ function renderDonutChart(usage, snippets) {
     t.classList.add(cls);
     return t;
   };
-  const centerTop = mkText(100, 84,  'donut-center-top');
-  const centerMid = mkText(100, 97,  'donut-center-mid');
-  const centerBot = mkText(100, 111, 'donut-center-bot');
+  const centerMid = mkText(100, 93,  'donut-center-mid');
+  const centerBot = mkText(100, 113, 'donut-center-bot');
 
   const resetCenter = () => {
-    centerTop.textContent = '';
-    centerMid.setAttribute('y', '97');
-    centerMid.style.fill = '';
-    centerMid.textContent = total.toLocaleString();
-    centerBot.setAttribute('y', '111');
-    centerBot.textContent = 'expansions';
+    centerMid.style.fill     = '';
+    centerMid.style.fontSize = '';
+    centerMid.textContent    = total.toLocaleString();
+    centerBot.style.fill     = '';
+    centerBot.style.opacity  = '';
+    centerBot.style.fontSize = '';
+    centerBot.textContent    = 'expansions';
   };
   resetCenter();
 
   const setHoverCenter = (seg) => {
     const prefix    = data.prefix || '/';
     const abbrLabel = seg.abbr ? prefix + seg.abbr : 'Other';
-    const showTitle = seg.abbr && seg.title && seg.title.length <= 10;
-    if (showTitle) {
-      centerTop.textContent = seg.title;
-      centerMid.setAttribute('y', '99');
-      centerBot.setAttribute('y', '113');
-    } else {
-      centerTop.textContent = '';
-      centerMid.setAttribute('y', '97');
-      centerBot.setAttribute('y', '111');
-    }
-    centerMid.style.fill = '#5c5fef';
-    centerMid.textContent = abbrLabel;
-    centerBot.textContent = seg.pct + '%';
+    centerMid.style.fill     = seg.color;
+    centerMid.style.fontSize = '20px';
+    centerMid.textContent    = abbrLabel;
+    centerBot.style.fill     = seg.color;
+    centerBot.style.opacity  = '0.6';
+    centerBot.style.fontSize = '13px';
+    centerBot.textContent    = seg.pct + '%';
   };
 
-  // Shared helpers
-  const highlightSegs = (i) => {
-    pathEls.forEach((p, j) => {
-      p.style.opacity   = j === i ? '1' : '0.3';
-      p.style.transform = j === i ? 'scale(1.05)' : 'scale(1)';
-    });
-  };
-  const resetSegs = () => {
-    pathEls.forEach((p) => { p.style.opacity = '1'; p.style.transform = 'scale(1)'; });
-  };
-
-  // Build segments
-  const pathEls = [];
+  // Build arc paths (normal + hover with OR+4)
+  const arcPaths = [];
   let startAngle = 0;
   const numSegs = segments.length;
 
@@ -794,18 +783,29 @@ function renderDonutChart(usage, snippets) {
     const arcStart = startAngle + halfGap;
     const arcEnd   = startAngle + sliceDeg - halfGap;
     startAngle += sliceDeg;
+    arcPaths.push({
+      normalD: describeArc(CX, CY, OR,     IR, arcStart, arcEnd),
+      hoverD:  describeArc(CX, CY, OR + 4, IR, arcStart, arcEnd),
+    });
+  });
 
+  // Build path elements
+  const pathEls = [];
+  segments.forEach((seg, i) => {
     const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', describeArc(CX, CY, OR, IR, arcStart, arcEnd));
+    path.setAttribute('d', arcPaths[i].normalD);
     path.setAttribute('fill', seg.color);
-    path.style.transformOrigin = '100px 100px';
-    path.style.transition = 'opacity 180ms ease, transform 180ms ease';
-    path.style.animation  = `donutIn 420ms cubic-bezier(.34,1.26,.64,1) ${i * 70}ms both`;
+    path.style.animation = `donutIn 420ms cubic-bezier(.34,1.26,.64,1) ${i * 70}ms both`;
     if (seg.macro) path.style.cursor = 'pointer';
 
-    // Segment hover: update center only — no tooltip
-    path.addEventListener('mouseenter', () => { highlightSegs(i); setHoverCenter(seg); });
-    path.addEventListener('mouseleave', () => { resetSegs(); resetCenter(); });
+    path.addEventListener('mouseenter', () => {
+      path.setAttribute('d', arcPaths[i].hoverD);
+      setHoverCenter(seg);
+    });
+    path.addEventListener('mouseleave', () => {
+      path.setAttribute('d', arcPaths[i].normalD);
+      resetCenter();
+    });
 
     if (seg.macro) {
       path.addEventListener('click', () => {
@@ -818,7 +818,6 @@ function renderDonutChart(usage, snippets) {
     pathEls.push(path);
   });
 
-  svg.appendChild(centerTop);
   svg.appendChild(centerMid);
   svg.appendChild(centerBot);
 
@@ -830,16 +829,17 @@ function renderDonutChart(usage, snippets) {
     const item = document.createElement('div');
     item.className = 'donut-legend-item' + (seg.macro ? ' donut-legend-item--clickable' : '');
     item.innerHTML = `
-      <span class="donut-legend-pct" style="color:${seg.color}">${seg.pct}%</span>
       <span class="donut-legend-dot" style="background:${seg.color}"></span>
       <span class="donut-legend-title">${escHtml(seg.title)}</span>
-      <span class="donut-legend-count">${seg.count}</span>
+      <span class="donut-legend-bar-wrap" style="background:${seg.color}40">
+        <span class="donut-legend-bar" style="background:${seg.color}" data-pct="${seg.pct}"></span>
+      </span>
+      <span class="donut-legend-pct" style="color:${seg.color}">${seg.pct}%</span>
     `;
 
     item.addEventListener('mouseenter', () => {
-      highlightSegs(i);
+      pathEls[i].setAttribute('d', arcPaths[i].hoverD);
       setHoverCenter(seg);
-      // Tooltip above the row — fixed positioning (not cursor-following)
       if (seg.macro && seg.macro.content) {
         const preview = stripHtml(seg.macro.content).replace(/\n/g, ' ').trim();
         const text = preview.length > 80 ? preview.slice(0, 80) + '\u2026' : preview;
@@ -855,7 +855,7 @@ function renderDonutChart(usage, snippets) {
       }
     });
     item.addEventListener('mouseleave', () => {
-      resetSegs();
+      pathEls[i].setAttribute('d', arcPaths[i].normalD);
       resetCenter();
       tooltip.classList.remove('visible');
       delete tooltip.dataset.fixed;
@@ -876,6 +876,16 @@ function renderDonutChart(usage, snippets) {
   wrapper.appendChild(chartArea);
   wrapper.appendChild(legend);
   container.appendChild(wrapper);
+
+  // Animate legend bars after DOM insertion
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      legend.querySelectorAll('.donut-legend-bar').forEach((bar, i) => {
+        bar.style.transitionDelay = `${i * 100}ms`;
+        bar.style.width = bar.dataset.pct + '%';
+      });
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------

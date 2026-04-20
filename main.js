@@ -186,6 +186,8 @@ const DEFAULT_RESOLVERS = {
 //   - the trigger key itself has NOT been appended (trigger keys are handled
 //     before any character append and always clear buf afterward)
 //   - Shift and other pure modifiers never modified buf
+// Priority: user macros always win over DEFAULT_RESOLVERS. A user macro with
+// abbr "ts" will always expand before the built-in timestamp resolver.
 // If buf starts with the current prefix and the remainder matches a known
 // abbreviation, the typed text is replaced with the expansion.
 function expandMacro() {
@@ -199,7 +201,8 @@ function expandMacro() {
   // deleteCount = everything currently in buf + the trigger key that just fired
   const deleteCount = buf.length + 1;
 
-  // Check user macros first (they take priority over defaults)
+  // USER MACROS — checked first; always take priority over built-in resolvers.
+  // Both sides are lowercased so abbreviations are matched case-insensitively.
   const userMatch = macrosCache.snippets.find(
     (s) => s.abbr.toLowerCase() === abbr
   );
@@ -219,13 +222,13 @@ function expandMacro() {
       .replace(/&nbsp;/g,       ' ')
       .replace(/\n{3,}/g,       '\n\n') // collapse runs of blank lines
       .trim();
+    if (!text) return; // nothing to expand — don't clear what the user typed
     incrementUsage(abbr);
-    console.log(`[expand] "${abbr}" -> "${text.slice(0, 80)}${text.length > 80 ? '...' : ''}"`);
     typeExpansion(deleteCount, text);
     return;
   }
 
-  // Check built-in date/time resolvers
+  // BUILT-IN RESOLVERS — only reached when no user macro matched.
   const resolver = DEFAULT_RESOLVERS[abbr];
   if (resolver) {
     typeExpansion(deleteCount, resolver());
@@ -234,31 +237,40 @@ function expandMacro() {
 }
 
 function typeExpansion(deleteCount, text) {
-  // Disable the listener FIRST — before any key synthesis — so our own
-  // backspace and paste events are not re-captured by this handler.
+  // Disable the listener FIRST — synchronously, before any clipboard or key
+  // operations — so our own synthetic backspace and paste events are not
+  // re-captured by the uiohook handler.
   listening = false;
   buf = '';  // clear immediately; the keydown handler's buf='' is a safety net
 
   // Snapshot the clipboard so we can restore it after pasting.
   const prev = clipboard.readText();
+
+  // Write macro content to the clipboard. clipboard.writeText() is synchronous
+  // from Node's perspective, but on macOS the write travels through the
+  // pasteboard server (a separate OS process). We must wait a short time before
+  // sending the paste keystroke, otherwise the target application may still
+  // read the old clipboard value when it processes Cmd+V.
   clipboard.writeText(text);
 
-  // Erase the typed abbreviation + trigger key.
-  for (let i = 0; i < deleteCount; i++) {
-    uIOhook.keyTap(UiohookKey.Backspace);
-  }
-
-  // Paste — Cmd+V on macOS, Ctrl+V on Windows / Linux.
-  const modifier = process.platform === 'darwin' ? UiohookKey.Meta : UiohookKey.Ctrl;
-  uIOhook.keyTap(UiohookKey.V, [modifier]);
-
-  // Restore the clipboard and re-enable the listener after a conservative
-  // delay. 300ms gives slower machines and the Windows hook stack enough
-  // time to finish processing the paste before we start capturing again.
   setTimeout(() => {
-    clipboard.writeText(prev);
-    listening = true;
-  }, 300);
+    // Erase the typed abbreviation + trigger key.
+    for (let i = 0; i < deleteCount; i++) {
+      uIOhook.keyTap(UiohookKey.Backspace);
+    }
+
+    // Paste — Cmd+V on macOS, Ctrl+V on Windows / Linux.
+    const modifier = process.platform === 'darwin' ? UiohookKey.Meta : UiohookKey.Ctrl;
+    uIOhook.keyTap(UiohookKey.V, [modifier]);
+
+    // Restore the original clipboard content and re-enable the listener.
+    // 400ms is conservative enough for slow machines and the Windows hook
+    // stack to finish delivering the paste before we resume capturing.
+    setTimeout(() => {
+      clipboard.writeText(prev);
+      listening = true;
+    }, 400);
+  }, 50); // 50ms: allow the pasteboard server to acknowledge the write
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +344,13 @@ ipcMain.handle('macros:incrementUsage', (_event, abbr) => {
 });
 
 ipcMain.handle('macros:getUsage', () => loadUsage());
+
+ipcMain.handle('macros:deleteUsage', (_event, abbr) => {
+  if (typeof abbr !== 'string' || !abbr) return;
+  const usage = loadUsage();
+  delete usage[abbr];
+  saveUsage(usage);
+});
 
 ipcMain.handle('macros:listenerStatus', () => listening);
 

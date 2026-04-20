@@ -532,44 +532,10 @@ body.light-mode #search:focus { background: rgba(0,0,0,0.04); }
   border: none;
 }
 
-/* Dot + value inline row */
-.stat-top-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Colored dot left of stat number */
-.stat-dot {
-  display: block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* Per-card tints and dot colors */
-.stat-card--expansions {
-  background: rgba(76, 175, 130, 0.08);
-}
-.stat-card--expansions .stat-dot {
-  background: #4caf82;
-}
-
-.stat-card--top {
-  background: rgba(245, 158, 11, 0.08);
-}
-.stat-card--top .stat-dot {
-  background: #f59e0b;
-}
-
-.stat-card--timesaved {
-  background: rgba(139, 92, 246, 0.08);
-  cursor: default;
-}
-.stat-card--timesaved .stat-dot {
-  background: #8b5cf6;
-}
+/* Per-card tints */
+.stat-card--expansions  { background: rgba(76, 175, 130, 0.08); }
+.stat-card--top         { background: rgba(245, 158, 11, 0.08); }
+.stat-card--timesaved   { background: rgba(139, 92, 246, 0.08); cursor: default; }
 
 .stat-value {
   font-size: 22px;
@@ -636,23 +602,15 @@ body.light-mode #search:focus { background: rgba(0,0,0,0.04); }
   overflow: visible;
 }
 
-.donut-center-top {
-  font-size: 10px;
-  fill: var(--text-dim);
-  font-family: 'Inter', -apple-system, sans-serif;
-  letter-spacing: 0.2px;
-}
-
 .donut-center-mid {
-  font-size: 18px;
+  font-size: 28px;
   font-weight: 700;
   fill: var(--text-bright);
   font-family: 'Inter', -apple-system, sans-serif;
-  transition: fill 150ms ease;
 }
 
 .donut-center-bot {
-  font-size: 10px;
+  font-size: 11px;
   fill: var(--text-dim);
   font-family: 'Inter', -apple-system, sans-serif;
   text-transform: uppercase;
@@ -672,20 +630,23 @@ body.light-mode #search:focus { background: rgba(0,0,0,0.04); }
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .donut-legend-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 8px;
+  gap: 8px;
+  padding: 6px 8px;
   border-radius: 7px;
   transition: background var(--transition);
 }
 
 .donut-legend-item:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+.donut-legend-item:hover .donut-legend-title {
+  color: var(--text-bright);
 }
 
 body.light-mode .donut-legend-item:hover {
@@ -697,8 +658,8 @@ body.light-mode .donut-legend-item:hover {
 }
 
 .donut-legend-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -710,20 +671,29 @@ body.light-mode .donut-legend-item:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color var(--transition);
+}
+
+.donut-legend-bar-wrap {
+  width: 80px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.donut-legend-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  transition: width 600ms ease;
 }
 
 .donut-legend-pct {
   font-size: 11px;
   font-family: 'Courier New', monospace;
-  width: 32px;
+  width: 28px;
   text-align: right;
-  flex-shrink: 0;
-}
-
-.donut-legend-count {
-  font-size: 12px;
-  font-family: 'Courier New', monospace;
-  color: var(--text-dim);
   flex-shrink: 0;
 }
 
