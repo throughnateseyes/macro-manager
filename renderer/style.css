@@ -263,7 +263,7 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 
 .content-input {
   width: 100%;
-  min-height: 120px;
+  min-height: 72px;
   resize: none;
   border: none; background: none;
   font-size: 14px;

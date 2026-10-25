@@ -588,7 +588,7 @@ function renderEditor() {
 
   const autosize = () => {
     fContent.style.height = 'auto';
-    fContent.style.height = Math.max(120, fContent.scrollHeight) + 'px';
+    fContent.style.height = Math.max(72, fContent.scrollHeight) + 'px';
   };
   autosize();
 
