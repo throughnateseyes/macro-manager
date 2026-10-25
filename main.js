@@ -1,12 +1,13 @@
 const {
   app, BrowserWindow, ipcMain, globalShortcut, dialog, Tray, Menu, nativeImage,
-  nativeTheme, shell, screen, systemPreferences, clipboard, Notification, desktopCapturer,
+  nativeTheme, shell, screen, systemPreferences, clipboard, Notification, desktopCapturer, net,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { createStore } = require('./lib/store');
 const { createExpander } = require('./lib/expander');
 const { BUILT_INS, TOKENS, expandTemplate } = require('./lib/placeholders');
+const { createReporter } = require('./lib/report');
 
 const IS_MAC = process.platform === 'darwin';
 const IS_WIN = process.platform === 'win32';
@@ -32,6 +33,19 @@ if (IS_WIN) app.setAppUserModelId('com.macromanager.app');
 const store = createStore(app.getPath('userData'));
 let macros = store.loadMacros();
 let settings = store.loadSettings();
+
+// Adding to the total (lib/report.js). Only from a packaged app, so development
+// and the CI smoke test never count; MM_STATS_URL points a dev build at a local
+// portfolio server to test it. Nothing is sent before the notice is answered.
+const STATS_URL = process.env.MM_STATS_URL || 'https://throughnateseyes.com';
+const reporter = createReporter({
+  store,
+  version: app.getVersion(),
+  origin: STATS_URL,
+  fetch: (url, init) => net.fetch(url, init),
+  isEnabled: () => settings.shareUsage && settings.usageNoticeSeen && !SMOKE_TEST
+    && (app.isPackaged || Boolean(process.env.MM_STATS_URL)),
+});
 
 let mainWindow = null;
 let paletteWindow = null;
@@ -456,7 +470,12 @@ function applySettings(patch) {
   }
   const { launchAtLogin, ...rest } = patch;
   if (launchAtLogin !== undefined) setLaunchAtLogin(Boolean(launchAtLogin));
+  // Back on after being off: what happened in between isn't sent.
+  const sharingResumed = rest.shareUsage === true && !settings.shareUsage;
+  const noticeAnswered = rest.usageNoticeSeen === true && !settings.usageNoticeSeen;
   if (Object.keys(rest).length) settings = store.saveSettings(rest);
+  if (sharingResumed) reporter.rebase();
+  if (sharingResumed || noticeAnswered) reporter.soon();
   if (rest.theme) nativeTheme.themeSource = rest.theme;
   if ('quickInsertShortcut' in rest || 'openWindowShortcut' in rest) registerShortcuts();
   updateTrayMenu();
@@ -607,6 +626,7 @@ ipcMain.handle('app:state', () => ({
   version: app.getVersion(),
   platform: process.platform,
   dataPath: store.paths.macros,
+  statsUrl: `${STATS_URL}/work/macro-manager`,
   accessibility: accessibilityGranted(),
   update: updateState,
   builtIns: BUILT_INS,
@@ -719,6 +739,7 @@ app.whenReady().then(() => {
   registerShortcuts();
   if (SMOKE_TEST) { runSmokeTest(); return; }
   initAutoUpdater();
+  reporter.start();
 
   if (!startExpander()) {
     expanderRetry = setInterval(() => {
