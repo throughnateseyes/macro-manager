@@ -9,7 +9,16 @@ const OUT = path.join(__dirname, '..', 'docs', 'screenshots');
 const click = (text) =>
   `[...document.querySelectorAll('button')].find((b) => b.textContent.includes(${JSON.stringify(text)}))?.click()`;
 
+const direction = (k) => `localStorage.setItem('overviewDirection', '"${k}"'); location.reload();`;
+
 const SHOTS = [
+  { name: 'explore-sky-light.png', file: 'preview.html', query: 'platform=darwin&solid&busy', theme: 'light', run: direction('sky') },
+  { name: 'explore-sky-dark.png', file: 'preview.html', query: 'platform=darwin&solid&busy', theme: 'dark', run: direction('sky') },
+  { name: 'explore-lanes-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light', run: direction('lanes') },
+  { name: 'explore-lanes-dark.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'dark', run: direction('lanes') },
+  { name: 'explore-board-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light', run: direction('board') },
+  { name: 'explore-board-dark.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'dark', run: direction('board') },
+
   { name: 'overview-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light' },
   { name: 'overview-dark.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'dark' },
   { name: 'editor-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light', run: click('Tour Confirmation') },
@@ -25,12 +34,13 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 app.whenReady().then(async () => {
   fs.mkdirSync(OUT, { recursive: true });
-  for (const s of SHOTS) {
+  const only = process.env.ONLY;
+  for (const s of SHOTS.filter((x) => !only || x.name.startsWith(only))) {
     nativeTheme.themeSource = s.theme;
     const win = new BrowserWindow({ width: s.width || 1100, height: s.height || 720, show: false, useContentSize: true });
     await win.loadFile(path.join(__dirname, s.file), { search: s.query });
     await wait(500);
-    if (s.run) { await win.webContents.executeJavaScript(s.run); await wait(500); }
+    if (s.run) { await win.webContents.executeJavaScript(s.run).catch(() => {}); await wait(1800); }
     fs.writeFileSync(path.join(OUT, s.name), (await win.webContents.capturePage()).toPNG());
     console.log('saved', s.name);
     win.destroy();

@@ -1,6 +1,7 @@
 // Browser-only stand-in for preload.js so the renderer can be previewed
 // without Electron:  python3 -m http.server 5180  →  /dev/preview.html
 // Add ?platform=win32 to preview the Windows layout, ?empty to start blank.
+window.MM_DEV = true; // shows the Overview direction chooser
 (() => {
   const params = new URLSearchParams(location.search);
   // ?solid — no native vibrancy in a browser, so paint the sidebar.
@@ -34,6 +35,8 @@
       d.setDate(d.getDate() - 1);
     }
   }
+  // ?busy — a heavy day so far, to see the sky cloud over.
+  if (params.has('busy')) days[dayKey(new Date())] = { total: 22, macros: { tour: 9, sig: 6, fu: 4, mr: 3 } };
   const stats = { lifetime: params.has('empty') ? 0 : 1457, charsSaved: params.has('empty') ? 0 : 118400, since: '2026-04-11', days };
 
   const BUILT_INS = [

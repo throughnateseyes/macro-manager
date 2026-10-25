@@ -45,16 +45,20 @@ body.win .win-brand { display: flex; }
 
 .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 10px; }
 .nav-item, .macro-item {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 9px;
   width: 100%;
-  min-height: 28px;
+  min-height: 30px;
   padding: 0 8px;
   border-radius: var(--radius-sm);
   text-align: left;
   color: var(--text);
   font-size: 13px;
 }
-.nav-item .icon { color: var(--accent); }
+.nav-item .tile {
+  width: 20px; height: 20px; flex-shrink: 0;
+  border-radius: 5.2px;
+  box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.18), inset 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
 .nav-item:hover, .macro-item:hover { background: var(--hover); }
 .nav-item.active, .macro-item.active { background: var(--selected); }
 .nav-item.active { font-weight: 500; }

@@ -6,6 +6,7 @@
         content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="overview.css" />
   <title>Macro Manager</title>
 </head>
 <body>
@@ -26,15 +27,15 @@
 
       <nav class="nav" aria-label="Sections">
         <button class="nav-item" data-view="overview">
-          <svg class="icon" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1.4"/><rect x="9" y="2" width="5" height="5" rx="1.4"/><rect x="2" y="9" width="5" height="5" rx="1.4"/><rect x="9" y="9" width="5" height="5" rx="1.4"/></svg>
+          <svg class="tile" viewBox="0 0 20 20" aria-hidden="true"><defs><linearGradient id="g-ov" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4aa3ff"/><stop offset="1" stop-color="#0a6cf0"/></linearGradient></defs><rect width="20" height="20" rx="5.2" fill="url(#g-ov)"/><path fill="#fff" d="M6.2 14.2a3 3 0 0 1-.4-5.97 4.2 4.2 0 0 1 8.05.86A2.6 2.6 0 0 1 13.9 14.2Z"/></svg>
           <span>Overview</span>
         </button>
         <button class="nav-item" data-view="builtins">
-          <svg class="icon" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.3 1.6"/></svg>
+          <svg class="tile" viewBox="0 0 20 20" aria-hidden="true"><defs><linearGradient id="g-dt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffa23a"/><stop offset="1" stop-color="#ff6a1a"/></linearGradient></defs><rect width="20" height="20" rx="5.2" fill="url(#g-dt)"/><circle cx="10" cy="10" r="5.6" fill="#fff"/><path d="M10 6.9V10l2.1 1.4" fill="none" stroke="#ff7a1a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>Date &amp; Time</span>
         </button>
         <button class="nav-item" data-view="settings">
-          <svg class="icon" viewBox="0 0 16 16"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></svg>
+          <svg class="tile" viewBox="0 0 20 20" aria-hidden="true"><defs><linearGradient id="g-st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a1a1a8"/><stop offset="1" stop-color="#6c6c72"/></linearGradient></defs><rect width="20" height="20" rx="5.2" fill="url(#g-st)"/><rect x="9.05" y="3.6" width="1.9" height="3" rx=".5" fill="#fff" transform="rotate(0 10 10)"/><rect x="9.05" y="3.6" width="1.9" height="3" rx=".5" fill="#fff" transform="rotate(45 10 10)"/><rect x="9.05" y="3.6" width="1.9" height="3" rx=".5" fill="#fff" transform="rotate(90 10 10)"/><rect x="9.05" y="3.6" width="1.9" height="3" rx=".5" fill="#fff" transform="rotate(135 10 10)"/><rect x="9.05" y="3.6" width="1.9" height="3" rx=".5" fill="#fff" transform="rotate(180 10 10)"/><rect x="9.05" y="3.6" width="1.9" height="3" rx=".5" fill="#fff" transform="rotate(225 10 10)"/><rect x="9.05" y="3.6" width="1.9" height="3" rx=".5" fill="#fff" transform="rotate(270 10 10)"/><rect x="9.05" y="3.6" width="1.9" height="3" rx=".5" fill="#fff" transform="rotate(315 10 10)"/><circle cx="10" cy="10" r="4.4" fill="#fff"/><circle cx="10" cy="10" r="1.7" fill="#7c7c82"/></svg>
           <span>Settings</span>
         </button>
       </nav>
@@ -68,6 +69,7 @@
   <div id="menu" class="menu hidden" role="menu"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <script src="overview.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
