@@ -2,6 +2,10 @@
 
 A test build, not a release: nothing updates by itself and nobody else gets it. Installing it over 2.1 keeps your macros.
 
+**Install.** Sign in to GitHub, open the [run's artifacts](https://github.com/throughnateseyes/macro-manager/actions/runs/40246018880#artifacts), and download **installers-Windows** or **installers-macOS**. Each downloads as a zip; unzip it first.
+- **Windows:** run `Macro-Manager-Windows-Setup.exe`. It isn't signed, so Windows says "Windows protected your PC": click **More info → Run anyway**.
+- **Mac:** open `Macro-Manager-Mac-arm64.dmg` (Apple Silicon) or `Macro-Manager-Mac-x64.dmg` (Intel) and drag the app to Applications, replacing 2.1. On first launch macOS says it can't verify the developer: open **System Settings → Privacy & Security**, scroll down, click **Open Anyway**. If expansion doesn't work, check **Privacy & Security → Accessibility → Macro Manager** is on.
+
 **Set up once.** In Macro Manager, make a macro with the abbreviation `tourtest`, set **Format** to **Formatted**, and paste this in as its text:
 
 ```
