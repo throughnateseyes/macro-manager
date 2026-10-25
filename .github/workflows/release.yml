@@ -97,16 +97,29 @@ jobs:
           done
           echo "Both Mac builds signed with the Macro Manager certificate"
 
-      # Launch the packaged app for real; nothing is uploaded if it can't start.
+      # Launch the packaged app for real; nothing is uploaded if it can't
+      # start. It also photographs every screen (see captureScreens in
+      # main.js), uploaded below as "screenshots-Windows" / "-macOS".
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        env: { MACRO_MANAGER_DATA: '${{ runner.temp }}/smoke' }
-        run: '"release/win-unpacked/Macro Manager.exe" --smoke-test'
+        env: { MACRO_MANAGER_DATA: '${{ runner.temp }}/smoke', SMOKE_SHOTS: '${{ runner.temp }}/shots' }
+        run: |
+          node scripts/smoke-seed.js "$MACRO_MANAGER_DATA"
+          "release/win-unpacked/Macro Manager.exe" --smoke-test
       - name: Smoke test (Mac)
         if: runner.os == 'macOS'
-        env: { MACRO_MANAGER_DATA: '${{ runner.temp }}/smoke' }
-        run: '"release/mac-arm64/Macro Manager.app/Contents/MacOS/Macro Manager" --smoke-test'
+        env: { MACRO_MANAGER_DATA: '${{ runner.temp }}/smoke', SMOKE_SHOTS: '${{ runner.temp }}/shots' }
+        run: |
+          node scripts/smoke-seed.js "$MACRO_MANAGER_DATA"
+          "release/mac-arm64/Macro Manager.app/Contents/MacOS/Macro Manager" --smoke-test
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-${{ runner.os }}
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: warn
 
       - name: Upload to release ${{ env.TAG }}
         if: github.event_name == 'push'

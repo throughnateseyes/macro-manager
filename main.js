@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, ipcMain, globalShortcut, dialog, Tray, Menu, nativeImage,
-  nativeTheme, shell, screen, systemPreferences, clipboard, Notification,
+  nativeTheme, shell, screen, systemPreferences, clipboard, Notification, desktopCapturer,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -729,10 +729,61 @@ app.whenReady().then(() => {
   app.on('activate', () => showWindow());
 });
 
+async function captureScreens(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const save = (name, img) => {
+    fs.writeFileSync(path.join(dir, `${process.platform}-${name}.png`), img.toPNG());
+    console.log('[smoke] screenshot', name);
+  };
+  const snap = async (win, name) => save(name, await win.webContents.capturePage());
+  // The whole screen, so Windows' own title bar buttons are in the picture
+  // (capturePage only sees the web page). macOS needs a permission for this.
+  const snapScreen = async (name) => {
+    if (!IS_WIN) return;
+    const { width, height } = screen.getPrimaryDisplay().size;
+    const [src] = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width, height } });
+    if (src) save(name, src.thumbnail);
+  };
+
+  mainWindow.setSize(1100, 720);
+  mainWindow.center();
+  mainWindow.show();
+  mainWindow.focus();
+  await wait(1200);
+  await snap(mainWindow, '0-whats-new');
+  await mainWindow.webContents.executeJavaScript("document.querySelector('.sheet-backdrop [data-close]')?.click()");
+  const views = [['overview', '1-overview'], ['library', '2-macros'], ['macro:1', '3-editor'], ['settings', '4-settings'], ['builtins', '5-date-time']];
+  for (const [view, name] of views) {
+    mainWindow.webContents.send('navigate', view);
+    await wait(1000);
+    await snap(mainWindow, name);
+  }
+  mainWindow.webContents.send('navigate', 'overview');
+  await wait(800);
+  await snapScreen('6-desktop');
+  nativeTheme.themeSource = 'dark';
+  await wait(1000);
+  await snap(mainWindow, '7-overview-dark');
+  await snapScreen('8-desktop-dark');
+  nativeTheme.themeSource = settings.theme;
+  showPalette('insert');
+  await wait(1000);
+  await snap(paletteWindow, '9-quick-insert');
+  hidePalette();
+  if (IS_WIN) {
+    await wait(400);
+    showPalette('tray');
+    await wait(1000);
+    await snap(paletteWindow, '10-tray-flyout');
+    hidePalette();
+  }
+}
+
 function runSmokeTest() {
   const errors = [];
   const fail = (msg) => { console.error('[smoke] FAIL:', msg); app.exit(1); };
-  setTimeout(() => fail('timed out after 30s'), 30000);
+  setTimeout(() => fail('timed out after 90s'), 90000);
 
   const loaded = [mainWindow, paletteWindow].map((w) => new Promise((resolve) => {
     w.webContents.on('console-message', (e) => {
@@ -758,6 +809,16 @@ function runSmokeTest() {
       // Headless CI runners may refuse global hooks; loading the native module
       // (already done at require time) is what matters here.
       console.log('[smoke] keyboard hook unavailable on this runner:', err.message);
+    }
+
+    // SMOKE_SHOTS=<dir>: photograph every screen of the real packaged app on
+    // this OS, so a Windows build can be looked at without a Windows PC.
+    if (process.env.SMOKE_SHOTS) {
+      try {
+        await captureScreens(process.env.SMOKE_SHOTS);
+      } catch (err) {
+        console.log('[smoke] screenshots failed (not fatal):', err.message);
+      }
     }
 
     // Type "/smoke" + Space through the real handler and paste path, with
