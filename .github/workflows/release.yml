@@ -68,10 +68,34 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
 
+      # Same certificate on every release, so macOS keeps the Accessibility
+      # permission through updates (see scripts/mac-signing-keychain.sh).
+      - name: Load Mac signing certificate
+        if: runner.os == 'macOS'
+        env:
+          MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          MAC_SIGN_KEYCHAIN: ${{ runner.temp }}/signing.keychain-db
+        run: |
+          echo "$MAC_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          scripts/mac-signing-keychain.sh "$RUNNER_TEMP/cert.p12" "$MAC_CERT_PASSWORD"
+          rm "$RUNNER_TEMP/cert.p12"
+
       - name: Build installers
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          REQUIRE_MAC_SIGNING: ${{ runner.os == 'macOS' && '1' || '' }}
         run: npx electron-builder ${{ matrix.platform }} --publish never
+
+      - name: Check Mac signature
+        if: runner.os == 'macOS'
+        run: |
+          for app in "release/mac-arm64/Macro Manager.app" "release/mac/Macro Manager.app"; do
+            codesign --verify --deep --strict "$app"
+            codesign -d -r- "$app" 2>&1 | grep -q 'certificate root = H"b5dd7f2bcf250c8f3f2604486bf8b0f8ada92db6"' \
+              || { echo "::error::$app isn't signed with the Macro Manager certificate"; exit 1; }
+          done
+          echo "Both Mac builds signed with the Macro Manager certificate"
 
       # Launch the packaged app for real; nothing is uploaded if it can't start.
       - name: Smoke test (Windows)

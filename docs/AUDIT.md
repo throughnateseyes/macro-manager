@@ -85,7 +85,7 @@ v2.0.0 crashed on every expansion. Electron 44 replaced the synchronous clipboar
 
 ## 8. Still open
 
-- **Apple Developer ID**: needed for Mac auto-updates and to remove the first-launch prompt. Until then, every Mac update loses the Accessibility permission, because macOS identifies an ad-hoc-signed app by its build hash. A stable self-signed certificate would fix that part for free.
+- **Apple Developer ID**: needed for Mac auto-updates and to remove the first-launch prompt. The Accessibility half of this is solved: since 2.0.2, Mac builds are signed with one self-signed certificate, so macOS keeps the permission across updates (ad-hoc builds were identified by their hash and lost it every time).
 - **Windows code signing**: removes the SmartScreen "unknown publisher" prompt. Azure Trusted Signing costs about $10/mo.
 - **Team stats**: needs a small backend. Options are in [RELEASING.md](RELEASING.md#team-stats-next).
 - **Non-US keyboard layouts**: abbreviations assume US key positions for symbols.

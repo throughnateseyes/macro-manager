@@ -1,7 +1,8 @@
 /**
  * afterPack hook — runs after electron-builder assembles the app bundle and
  * before the DMG/ZIP is made. (electron-builder's own signing is turned off
- * with mac.identity: null, so the ad-hoc signature below is the final one.)
+ * with mac.identity: null, so the signature below is the final one: it only
+ * looks up *trusted* identities, and ours is self-signed on purpose.)
  *
  * macOS codesign rejects files that carry resource forks or Finder
  * extended attributes ("detritus"). Electron's pre-built binaries are
@@ -31,11 +32,32 @@ exports.default = async function afterPack(context) {
   // 3. dot_clean as a final pass to merge/remove any remaining sidecar data.
   execSync(`dot_clean -m "${appPath}" 2>/dev/null || true`);
 
-  // 4. Ad-hoc sign. We don't have an Apple Developer ID, and an Apple Silicon
-  //    app whose signature no longer matches its contents is reported as
-  //    "damaged". An ad-hoc signature turns that into the normal
-  //    "unidentified developer" prompt, which users can approve once.
-  execSync(`codesign --force --deep --sign - "${appPath}"`);
+  // 4. Sign. An Apple Silicon app whose signature doesn't match its contents
+  //    is reported as "damaged", so every build is signed, preferably with
+  //    the project's self-signed certificate (see
+  //    scripts/mac-signing-keychain.sh): one certificate across releases
+  //    means macOS keeps the Accessibility permission through updates.
+  //    Ad-hoc ("-") is the fallback for machines without it; CI sets
+  //    REQUIRE_MAC_SIGNING so a release can never quietly fall back.
+  const identity = findIdentity();
+  if (!identity && process.env.REQUIRE_MAC_SIGNING) {
+    throw new Error(`[afterPack] "${IDENTITY_NAME}" isn't in any keychain. Run scripts/mac-signing-keychain.sh first.`);
+  }
+  execSync(`codesign --force --deep --sign ${identity || '-'} "${appPath}"`, { stdio: 'inherit' });
 
-  console.log('[afterPack] Done — bundle cleaned and ad-hoc signed');
+  console.log(`[afterPack] Done — signed with ${identity ? `"${IDENTITY_NAME}" (${identity})` : 'an ad-hoc signature'}`);
 };
+
+const IDENTITY_NAME = 'Macro Manager Self-Signed';
+
+// The certificate's SHA-1, or null. Signing by hash avoids ambiguity if the
+// name ever appears twice.
+function findIdentity() {
+  try {
+    const out = execSync('security find-identity -p codesigning', { encoding: 'utf8' });
+    const line = out.split('\n').find((l) => l.includes(`"${IDENTITY_NAME}"`));
+    return line ? line.trim().split(/\s+/)[1] : null;
+  } catch {
+    return null;
+  }
+}

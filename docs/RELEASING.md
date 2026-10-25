@@ -44,9 +44,17 @@ To edit the release notes: **GitHub → Releases → the new version → Edit**.
 
 Publish a fixed version with a higher number (`npm run release:patch`). The updater only moves forward, so don't try to "un-release". If you need to stop people downloading a bad build right now, edit the release on GitHub and mark it as a **pre-release**: the updater ignores pre-releases.
 
-## Mac: re-allow Accessibility after each update
+## Mac signing certificate
 
-The Mac build is ad-hoc signed, so macOS treats every new version as a new app and the Accessibility switch stops applying. After updating: **System Settings → Privacy & Security → Accessibility**, select Macro Manager, click **−**, then use the app's **Open System Settings** banner and turn the new entry on. Windows has no equivalent step.
+Mac builds are signed with **"Macro Manager Self-Signed"**, a certificate made for this project (fingerprint `B5DD7F2B…2DB6`, valid until 2046). macOS remembers the Accessibility permission by "this app ID, signed by this certificate", so **updates keep the permission**. Builds before 2.0.2 were ad-hoc signed, so moving to 2.0.2 needs one last re-grant. After that, no more.
+
+| Where | What |
+|---|---|
+| `~/.macro-manager-signing/` on your Mac | `cert.p12` + `password.txt`. **Back these up** (a password manager works). Lose them and every Mac user re-grants once with a new certificate. |
+| GitHub → Settings → Secrets | `MAC_CERT_P12` (base64 of the .p12) and `MAC_CERT_PASSWORD`. CI refuses to release a Mac build that isn't signed with it. |
+| A new Mac you build on | Run `scripts/mac-signing-keychain.sh ~/.macro-manager-signing/cert.p12 "$(cat ~/.macro-manager-signing/password.txt)"` once. |
+
+It's self-signed, so it doesn't remove the first-launch "unidentified developer" prompt; only an Apple Developer ID does that.
 
 ## Getting your coworker onto v2
 
@@ -79,7 +87,7 @@ These never change, so they're safe to put on your portfolio or in Slack:
 | Warning | Why | Fix | Cost |
 |---|---|---|---|
 | Windows: "Windows protected your PC" | The installer isn't code-signed | [Azure Trusted Signing](https://learn.microsoft.com/azure/trusted-signing/), then add the secrets to CI | ~$10/month |
-| Mac: "Apple could not verify…" | No Apple Developer ID | [Apple Developer Program](https://developer.apple.com/programs/), then set `mac.identity` and notarize in CI | $99/year |
+| Mac: "Apple could not verify…" | Signed with a self-made certificate, not an Apple Developer ID | [Apple Developer Program](https://developer.apple.com/programs/), then set `mac.identity` and notarize in CI | $99/year |
 
 The Developer ID also turns on **automatic updates for Mac** (Apple requires signed apps for that). Until then, Mac users click **Download** in the app.
 
