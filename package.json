@@ -1,58 +1,106 @@
 {
   "name": "macro-manager",
-  "version": "1.0.5",
-  "description": "Cross-platform macro/text expansion manager",
+  "version": "2.0.0",
+  "description": "Type a short abbreviation anywhere and it expands into your saved text. Mac and Windows.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
+    "start:clean": "MACRO_MANAGER_DATA=./.dev-data electron .",
+    "preview": "python3 dev/serve.py",
+    "test": "node --test test/*.test.js",
+    "icons": "node scripts/icons.js",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
-    "publish:mac": "electron-builder --mac --publish always",
-    "publish:win": "electron-builder --win --publish always"
+    "build:all": "electron-builder --mac --win",
+    "release:patch": "npm test && npm version patch && git push --follow-tags",
+    "release:minor": "npm test && npm version minor && git push --follow-tags",
+    "release:major": "npm test && npm version major && git push --follow-tags"
   },
   "build": {
     "appId": "com.macromanager.app",
     "productName": "Macro Manager",
+    "copyright": "Copyright © 2026 Nate Ziehn",
     "afterPack": "./afterPack.js",
+    "npmRebuild": false,
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "main.js",
       "preload.js",
+      "lib/**/*",
       "renderer/**/*",
-      "build/**/*"
+      "assets/**/*",
+      "!node_modules/uiohook-napi/build/**",
+      "!node_modules/uiohook-napi/libuiohook/**",
+      "!node_modules/uiohook-napi/src/**"
     ],
     "publish": {
       "provider": "github",
       "owner": "throughnateseyes",
-      "repo": "macro-manager"
+      "repo": "macro-manager",
+      "releaseType": "draft"
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "artifactName": "Macro-Manager-${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Macro Manager types your saved text into other apps."
+      }
+    },
+    "dmg": {
+      "artifactName": "Macro-Manager-Mac-${arch}.${ext}",
+      "title": "Macro Manager"
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
+      "artifactName": "Macro-Manager-Windows-Setup.${ext}",
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
       "perMachine": false,
-      "deleteAppDataOnUninstall": false
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Macro Manager",
+      "runAfterFinish": true
     }
   },
   "devDependencies": {
-    "electron": "^33.0.0",
-    "electron-builder": "^25.1.8"
+    "electron": "^44.9.3",
+    "electron-builder": "^26.17.0"
   },
   "dependencies": {
-    "electron-updater": "^6.8.3",
+    "electron-updater": "^6.8.11",
     "uiohook-napi": "^1.5.4"
-  }
+  },
+  "author": "Nate Ziehn",
+  "homepage": "https://github.com/throughnateseyes/macro-manager",
+  "license": "MIT"
 }

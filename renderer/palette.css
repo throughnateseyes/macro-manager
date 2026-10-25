@@ -1,0 +1,72 @@
+html, body { background: transparent; overflow: hidden; height: 100%; }
+body.win, body.solid { background: var(--bg); }
+
+.palette {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+}
+body.mac:not(.solid) .palette { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+body.win .palette { border-radius: 0; border: 1px solid var(--border-2); }
+
+.field {
+  display: flex; align-items: center; gap: 10px;
+  height: 56px; flex-shrink: 0;
+  padding: 0 18px;
+  border-bottom: 0.5px solid var(--border);
+  color: var(--text-2);
+}
+.field .icon { width: 20px; height: 20px; }
+.field input { flex: 1; border: none; background: none; font-size: 19px; color: var(--text); }
+.field input::placeholder { color: var(--text-3); }
+
+.results { flex: 1; overflow-y: auto; padding: 6px; }
+.result {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: left;
+}
+.result .main { flex: 1; min-width: 0; }
+.result .title { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result .sub { font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.result .chip { background: transparent; border-color: var(--border-2); }
+.result.active { background: var(--accent); color: var(--on-accent); }
+.result.active .sub, .result.active .chip { color: inherit; opacity: 0.85; border-color: rgba(255, 255, 255, 0.4); }
+.group { padding: 8px 12px 4px; font-size: 11px; font-weight: 600; color: var(--text-3); }
+.empty { padding: 36px 16px; text-align: center; color: var(--text-3); }
+
+.foot {
+  display: flex; align-items: center; gap: 16px;
+  height: 34px; flex-shrink: 0;
+  padding: 0 16px;
+  border-top: 0.5px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.foot .spacer { flex: 1; }
+.foot kbd {
+  display: inline-block; min-width: 18px;
+  padding: 0 4px; margin-right: 4px;
+  border-radius: 4px;
+  background: var(--hover);
+  color: var(--text-2);
+  text-align: center;
+}
+
+/* Tray flyout (Windows): today's numbers above the search field. */
+.tray-head {
+  display: flex; align-items: center; gap: 18px;
+  padding: 12px 18px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--surface);
+}
+.tray-head .today { display: flex; flex-direction: column; line-height: 1.2; }
+.tray-head strong { font-family: var(--font-display); font-size: 18px; font-variant-numeric: tabular-nums; }
+.tray-head span { font-size: 11px; color: var(--text-2); }
+.open-btn { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--accent-text); padding: 4px 8px; border-radius: 6px; }
+.open-btn:hover { background: var(--accent-soft); }
+.result .pin { color: var(--orange); font-size: 11px; }

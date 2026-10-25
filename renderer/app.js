@@ -1,956 +1,1275 @@
 // ---------------------------------------------------------------------------
-// Default snippets — date & time, dynamically generated at render/expansion
+// Macro Manager — main window
 // ---------------------------------------------------------------------------
-const DEFAULT_SNIPPETS = [
-  {
-    title: 'Full Timestamp',
-    abbr: 'ts',
-    desc: 'Month D, YYYY H:MM AM/PM',
-    resolve: () => {
-      const d = new Date();
-      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-      let h = d.getHours(), ampm = h >= 12 ? 'PM' : 'AM';
-      h = h % 12 || 12;
-      return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${h}:${String(d.getMinutes()).padStart(2,'0')} ${ampm}`;
-    },
-  },
-  {
-    title: 'Short Date',
-    abbr: 'date',
-    desc: 'MM/DD/YYYY',
-    resolve: () => {
-      const d = new Date();
-      return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
-    },
-  },
-  {
-    title: 'ISO Date',
-    abbr: 'isodate',
-    desc: 'YYYY-MM-DD',
-    resolve: () => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    },
-  },
-  {
-    title: 'Time',
-    abbr: 'time',
-    desc: '12-hour time',
-    resolve: () => {
-      const d = new Date();
-      let h = d.getHours(), ampm = h >= 12 ? 'PM' : 'AM';
-      h = h % 12 || 12;
-      return `${h}:${String(d.getMinutes()).padStart(2,'0')} ${ampm}`;
-    },
-  },
-  {
-    title: '24hr Time',
-    abbr: 'time24',
-    desc: '24-hour time',
-    resolve: () => {
-      const d = new Date();
-      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-    },
-  },
-  {
-    title: 'Day + Date',
-    abbr: 'day',
-    desc: 'Weekday, Month Day',
-    resolve: () => {
-      const d = new Date();
-      const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-      return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-    },
-  },
-  {
-    title: 'Unix Timestamp',
-    abbr: 'unix',
-    desc: 'Seconds since epoch',
-    resolve: () => String(Math.floor(Date.now() / 1000)),
-  },
-];
+const api = window.macroAPI;
+
+const state = {
+  macros: { prefix: '/', snippets: [] },
+  usage: {},
+  stats: { lifetime: 0, charsSaved: 0, days: {} },
+  settings: {},
+  version: '',
+  platform: 'darwin',
+  dataPath: '',
+  accessibility: true,
+  update: { status: 'idle' },
+  builtIns: [],
+  tokens: [],
+
+  view: 'overview',   // overview | editor | builtins | settings
+  selected: -1,       // index into macros.snippets while in the editor
+  search: '',
+  sort: readLocal('sort', 'name'),            // name | usage | recent
+  collapsed: new Set(readLocal('collapsed', [])),
+  range: readLocal('range', 'all'),           // most-used range: 7 | 30 | all
+};
+
+const IS_MAC = () => state.platform === 'darwin';
+const MOD = () => (IS_MAC() ? '⌘' : 'Ctrl+');
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const el = {
+  list: $('#macro-list'),
+  count: $('#macro-count'),
+  search: $('#search'),
+  searchKbd: $('#search-kbd'),
+  footer: $('#sidebar-footer'),
+  view: $('#view'),
+  tbLeft: $('#toolbar-left'),
+  tbRight: $('#toolbar-right'),
+  menu: $('#menu'),
+  toast: $('#toast'),
+};
 
 // ---------------------------------------------------------------------------
-// State
+// Small helpers
 // ---------------------------------------------------------------------------
-let data = { snippets: [], prefix: '/' };
-let selectedIndex = -1;
-let isDark = true;          // true = dark mode (default)
-let showingDefaults = false;
-let settingsOpen = false;
+function readLocal(key, fallback) {
+  try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; }
+}
+function writeLocal(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ }
+}
 
-// Shared JS-driven tooltip — one element reused for all macro list items
-const tooltip = document.createElement('div');
-tooltip.className = 'macro-preview-tooltip';
-document.body.appendChild(tooltip);
+function esc(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
-// Global cursor-following logic for the shared tooltip
-// When tooltip.dataset.fixed is set, positioning is handled by the caller instead
-document.addEventListener('mousemove', (e) => {
-  if (!tooltip.classList.contains('visible')) return;
-  if (tooltip.dataset.fixed) return;
-  const margin = 12;
-  let x = e.clientX + 16;
-  let y = e.clientY - 8;
-  // Clamp so it never escapes the viewport
-  const tw = tooltip.offsetWidth;
-  const th = tooltip.offsetHeight;
-  if (x + tw > window.innerWidth  - margin) x = e.clientX - tw - 16;
-  if (y - th < margin)                       y = e.clientY + 24;
-  tooltip.style.left      = x + 'px';
-  tooltip.style.top       = y + 'px';
-  tooltip.style.transform = 'translateY(-100%)';
-});
+function h(html) {
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
+
+const ICON = {
+  copy:      '<svg class="icon" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 3.5v-.2A1.3 1.3 0 0 0 9.2 2H3.8A1.3 1.3 0 0 0 2.5 3.3v5.4A1.3 1.3 0 0 0 3.8 10h.2"/></svg>',
+  duplicate: '<svg class="icon" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M9.5 8v3M8 9.5h3M10.5 3.5v-.2A1.3 1.3 0 0 0 9.2 2H3.8A1.3 1.3 0 0 0 2.5 3.3v5.4A1.3 1.3 0 0 0 3.8 10h.2"/></svg>',
+  trash:     '<svg class="icon" viewBox="0 0 16 16"><path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-8.6"/></svg>',
+  keyboard:  '<svg class="icon" viewBox="0 0 16 16"><rect x="1.5" y="3.5" width="13" height="9" rx="1.8"/><path d="M4 6.5h.01M6.5 6.5h.01M9 6.5h.01M11.5 6.5h.01M5 9.5h6"/></svg>',
+  folder:    '<svg class="icon" viewBox="0 0 16 16"><path d="M1.75 4.25c0-.69.56-1.25 1.25-1.25h3l1.5 1.5H13c.69 0 1.25.56 1.25 1.25v6c0 .69-.56 1.25-1.25 1.25H3c-.69 0-1.25-.56-1.25-1.25z"/></svg>',
+  chart:     '<svg class="icon" viewBox="0 0 16 16"><path d="M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5"/></svg>',
+  plus:      '<svg class="icon" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>',
+  bolt:      '<svg class="icon" viewBox="0 0 16 16"><path d="M9 1.75 3.5 9h4l-.5 5.25L12.5 7h-4z"/></svg>',
+  search:    '<svg class="icon" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.75"/><path d="M10.5 10.5 14 14"/></svg>',
+  braces:    '<svg class="icon" viewBox="0 0 16 16"><path d="M5.5 2.5c-1.5 0-2 .7-2 2v1.6c0 .9-.5 1.4-1.5 1.9 1 .5 1.5 1 1.5 1.9v1.6c0 1.3.5 2 2 2M10.5 2.5c1.5 0 2 .7 2 2v1.6c0 .9.5 1.4 1.5 1.9-1 .5-1.5 1-1.5 1.9v1.6c0 1.3-.5 2-2 2"/></svg>',
+  shield:    '<svg class="icon" viewBox="0 0 16 16"><path d="M8 1.75 2.75 3.5v4c0 3.2 2.2 5.6 5.25 6.75 3.05-1.15 5.25-3.55 5.25-6.75v-4z"/><path d="m5.75 8 1.6 1.6 2.9-3.1"/></svg>',
+  chevron:   '<svg class="icon chev" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4"/></svg>',
+  pin:       '<svg class="icon" viewBox="0 0 16 16"><path d="M9.8 2.2 13.8 6.2M11.8 4.2 8.6 7.4l-3.2-.6-1.6 1.6 3.8 3.8 1.6-1.6-.6-3.2M5.6 10.4 2.5 13.5"/></svg>',
+  pinFill:   '<svg class="icon filled" viewBox="0 0 16 16"><path d="M9.8 2.2 13.8 6.2M11.8 4.2 8.6 7.4l-3.2-.6-1.6 1.6 3.8 3.8 1.6-1.6-.6-3.2z"/><path d="M5.6 10.4 2.5 13.5"/></svg>',
+  flame:     '<svg class="icon" viewBox="0 0 16 16"><path d="M8 14.5c2.8 0 4.5-1.9 4.5-4.4 0-2.9-2.5-4.4-3-7.6C7.6 3.6 6.8 5.6 7 7.4 6.1 6.9 5.6 6 5.5 5 4.2 6.2 3.5 7.9 3.5 10.1c0 2.5 1.7 4.4 4.5 4.4z"/></svg>',
+  trophy:    '<svg class="icon" viewBox="0 0 16 16"><path d="M5 2.5h6v3.2a3 3 0 0 1-6 0zM5 3.5H2.8c0 2 .9 3.2 2.5 3.4M11 3.5h2.2c0 2-.9 3.2-2.5 3.4M8 8.7v2.8M5.5 13.5h5"/></svg>',
+  check:     '<svg class="icon check" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7"/></svg>',
+};
+
+let toastTimer;
+function toast(msg) {
+  el.toast.textContent = msg;
+  el.toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.toast.classList.remove('show'), 1800);
+}
+
+function prettyAccel(accel) {
+  if (!accel) return 'Off';
+  if (IS_MAC()) {
+    return accel
+      .replace(/Command|Cmd|CommandOrControl/g, '⌘').replace(/Control|Ctrl/g, '⌃')
+      .replace(/Alt|Option/g, '⌥').replace(/Shift/g, '⇧').replace(/\+/g, '')
+      .replace('Space', ' Space');
+  }
+  return accel.replace(/Control/g, 'Ctrl').replace(/\+/g, ' + ');
+}
+
+function preview(text, max = 90) {
+  const one = String(text || '').replace(/\s+/g, ' ').trim();
+  return one.length > max ? one.slice(0, max) + '…' : one;
+}
+
+// Mirrors lib/keys.js abbrProblem().
+const PUNCTUATION = "/\\.,;='`[]-!@#$%^&*()_+{}|:\"<>?~";
+function abbrProblem(abbr, prefix) {
+  if (!abbr) return 'Add an abbreviation so this macro can expand.';
+  if (/\s/.test(abbr)) return 'Abbreviations can’t contain spaces.';
+  if (prefix && abbr.includes(prefix)) return `Abbreviations can’t contain the prefix “${prefix}”.`;
+  for (const ch of abbr.toLowerCase()) {
+    if (!/[a-z0-9]/.test(ch) && !PUNCTUATION.includes(ch)) return `“${ch}” can’t be typed as part of an abbreviation.`;
+  }
+  return null;
+}
+
+// Problems shown in the editor and as a dot in the sidebar.
+function macroIssues(index) {
+  const m = state.macros.snippets[index];
+  if (!m) return {};
+  const abbr = (m.abbr || '').toLowerCase();
+  const problem = abbrProblem(m.abbr, state.macros.prefix);
+  if (problem) return { warn: m.abbr || m.content ? problem : null };
+  const firstOwner = state.macros.snippets.findIndex((s) => (s.abbr || '').toLowerCase() === abbr);
+  if (firstOwner !== index) {
+    return { warn: `“${state.macros.snippets[firstOwner].title || 'Untitled'}” already uses ${state.macros.prefix}${m.abbr}. Only that one will expand.` };
+  }
+  if (!m.content.trim()) return { warn: 'This macro is empty, so it won’t expand yet.' };
+  const builtIn = state.builtIns.find((b) => b.abbr === abbr);
+  if (builtIn) return { info: `Replaces the built-in ${state.macros.prefix}${builtIn.abbr} (${builtIn.title}).` };
+  return {};
+}
+
+// Rough characters-per-minute for an average typist (~40 wpm).
+const CHARS_PER_MINUTE = 200;
+function timeSavedMinutes() {
+  let chars = 0;
+  for (const m of state.macros.snippets) {
+    const uses = state.usage[m.abbr] || 0;
+    chars += uses * Math.max(0, m.content.length - m.abbr.length - 2);
+  }
+  return chars / CHARS_PER_MINUTE;
+}
+
+function formatMinutes(min) {
+  if (min < 1) return '—';
+  if (min < 60) return `${Math.round(min)} min`;
+  const hrs = min / 60;
+  return `${hrs < 10 ? hrs.toFixed(1) : Math.round(hrs)} hr`;
+}
 
 // ---------------------------------------------------------------------------
-// DOM refs
+// Stats — lifetime totals, streaks, milestones, history
 // ---------------------------------------------------------------------------
-const macroList       = document.getElementById('macro-list');
-const searchInput     = document.getElementById('search');
-const editorEmpty     = document.getElementById('editor-empty');
-const editorForm      = document.getElementById('editor-form');
-const defaultsPage    = document.getElementById('defaults-page');
-const defaultsPageList = document.getElementById('defaults-page-list');
-const editorHeading   = document.getElementById('editor-heading');
-const editorSubtitle  = document.getElementById('editor-subtitle');
-const fieldTitle      = document.getElementById('field-title');
-const fieldAbbr       = document.getElementById('field-abbr');
-const fieldContent    = document.getElementById('field-content');
-const prefixBadge       = document.getElementById('prefix-badge');
-const prefixKey         = document.getElementById('prefix-key');
-const btnNew            = document.getElementById('btn-new');
-const btnHome           = document.getElementById('btn-home');
-const btnHomeDefaults   = document.getElementById('btn-home-defaults');
-const btnSave           = document.getElementById('btn-save');
-const btnDelete         = document.getElementById('btn-delete');
-const btnCopy           = document.getElementById('btn-copy');
-const btnSettings       = document.getElementById('btn-settings');
-const settingsPopover   = document.getElementById('settings-popover');
-const settingsThemeTgl  = document.getElementById('settings-theme-toggle');
-const settingsVersion   = document.getElementById('settings-version');
-const btnExport         = document.getElementById('btn-export');
-const btnExportLabel    = document.getElementById('btn-export-label');
-const btnImport         = document.getElementById('btn-import');
-const btnImportLabel    = document.getElementById('btn-import-label');
-const navDefaults       = document.getElementById('nav-defaults');
+const MILESTONES = [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 1000000];
 
-// Modals
-const prefixModal   = document.getElementById('prefix-modal');
-const prefixCancel  = document.getElementById('prefix-cancel');
-const deleteModal   = document.getElementById('delete-modal');
-const deleteConfirm = document.getElementById('delete-confirm');
-const deleteCancel  = document.getElementById('delete-cancel');
+function dayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function lastDays(n) {
+  const out = [];
+  const d = new Date();
+  for (let i = 0; i < n; i++) {
+    out.unshift(dayKey(d));
+    d.setDate(d.getDate() - 1);
+  }
+  return out;
+}
+
+const dayTotal = (key) => state.stats.days[key]?.total || 0;
+
+// Consecutive days with at least one expansion, ending today (or yesterday,
+// so the streak doesn't look broken first thing in the morning).
+function currentStreak() {
+  const d = new Date();
+  if (!dayTotal(dayKey(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (dayTotal(dayKey(d)) > 0) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+function bestStreak() {
+  const keys = Object.keys(state.stats.days).filter((k) => dayTotal(k) > 0).sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of keys) {
+    const d = new Date(`${k}T12:00:00`);
+    run = prev && (d - prev) / 86400000 < 1.5 ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = d;
+  }
+  return best;
+}
+
+// Uses per abbreviation over the last N days, or all time.
+function usageInRange(range) {
+  if (range === 'all') return state.usage;
+  const out = {};
+  for (const k of lastDays(Number(range))) {
+    for (const [abbr, n] of Object.entries(state.stats.days[k]?.macros || {})) out[abbr] = (out[abbr] || 0) + n;
+  }
+  return out;
+}
+
+function macroDaily(abbr, n) {
+  return lastDays(n).map((k) => state.stats.days[k]?.macros?.[abbr] || 0);
+}
+
+function nextMilestone(total) {
+  return MILESTONES.find((m) => m > total) || null;
+}
 
 // ---------------------------------------------------------------------------
-// Home button visibility
+// Persistence (autosave)
 // ---------------------------------------------------------------------------
-function setHomeButtonVisible(visible) {
-  [btnHome, btnHomeDefaults].forEach((btn) => {
-    if (!btn) return;
-    if (visible) btn.classList.remove('hidden');
-    else         btn.classList.add('hidden');
+let saveTimer = null;
+let savedAbbr = null; // abbreviation as last persisted, for usage renames
+
+function setSaveStatus(text) {
+  const s = $('.save-status');
+  if (s) s.textContent = text;
+}
+
+function scheduleSave() {
+  setSaveStatus('Editing…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 450);
+}
+
+async function flushSave() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const m = state.macros.snippets[state.selected];
+  if (m && savedAbbr !== null && m.abbr && savedAbbr && m.abbr !== savedAbbr) {
+    state.usage = await api.renameUsage(savedAbbr, m.abbr);
+  }
+  if (m) savedAbbr = m.abbr;
+  // Keep our own copy as the source of truth: the editor holds references
+  // into state.macros, so it must not be swapped out mid-edit.
+  await api.saveMacros(state.macros);
+  setSaveStatus('Saved');
+}
+
+// Leaving an untouched "New Macro" shouldn't leave a blank row behind.
+async function discardIfBlank(index) {
+  const m = state.macros.snippets[index];
+  if (m && !m.title.trim() && !m.abbr.trim() && !m.content.trim()) {
+    state.macros.snippets.splice(index, 1);
+    state.macros = await api.saveMacros(state.macros);
+    return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------------------
+async function go(view, index = -1) {
+  if (state.view === 'editor' && (view !== 'editor' || index !== state.selected)) {
+    if (saveTimer) await flushSave();
+    const prev = state.selected;
+    if (await discardIfBlank(prev) && index > prev) index -= 1;
+  }
+  state.view = view;
+  state.selected = view === 'editor' ? index : -1;
+  if (view === 'editor') savedAbbr = state.macros.snippets[index]?.abbr ?? null;
+  closeMenu();
+  render();
+  el.view.scrollTop = 0;
+}
+
+function render() {
+  renderNav();
+  renderList();
+  renderFooter();
+  renderView();
+}
+
+function renderNav() {
+  document.querySelectorAll('.nav-item').forEach((b) => {
+    b.classList.toggle('active', b.dataset.view === state.view);
   });
 }
 
 // ---------------------------------------------------------------------------
-// Show/hide defaults page (replaces right panel)
+// Sidebar list
 // ---------------------------------------------------------------------------
-function showDefaultsPage() {
-  showingDefaults = true;
-  selectedIndex = -1;
-  navDefaults.classList.add('active');
-  editorEmpty.classList.add('hidden');
-  editorForm.classList.add('hidden');
-  defaultsPage.classList.remove('hidden');
-  setHomeButtonVisible(true);
-  renderDefaultsPage();
-  renderList(searchInput.value);
+function searchScore(m, q) {
+  const abbr = m.abbr.toLowerCase();
+  const title = m.title.toLowerCase();
+  if (abbr === q) return 100;
+  if (abbr.startsWith(q)) return 80;
+  if (title.startsWith(q)) return 70;
+  if (title.split(/\s+/).some((w) => w.startsWith(q))) return 60;
+  if (title.includes(q) || abbr.includes(q)) return 40;
+  if ((m.folder || '').toLowerCase().includes(q)) return 30;
+  if (m.content.toLowerCase().includes(q)) return 20;
+  return 0;
 }
 
-function hideDefaultsPage() {
-  showingDefaults = false;
-  navDefaults.classList.remove('active');
-  defaultsPage.classList.add('hidden');
+function sortedIndices(indices) {
+  const s = state.macros.snippets;
+  const byTitle = (a, b) => (s[a].title || '￿').localeCompare(s[b].title || '￿', undefined, { sensitivity: 'base' });
+  if (state.sort === 'usage') return indices.sort((a, b) => (state.usage[s[b].abbr] || 0) - (state.usage[s[a].abbr] || 0) || byTitle(a, b));
+  if (state.sort === 'recent') return indices.sort((a, b) => b - a);
+  return indices.sort(byTitle);
 }
 
-function renderDefaultsPage() {
-  const prefix = data.prefix || '/';
-  defaultsPageList.innerHTML = '';
+// The order macros appear in the sidebar right now (used for ↑/↓ too).
+function visibleOrder() {
+  const s = state.macros.snippets;
+  const q = state.search.trim().toLowerCase();
+  if (q) {
+    return s.map((m, i) => [i, searchScore(m, q)])
+      .filter(([, score]) => score > 0)
+      .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+      .map(([i]) => i);
+  }
+  const loose = sortedIndices(s.map((_, i) => i).filter((i) => !s[i].folder));
+  const out = [...loose];
+  for (const folder of folders()) {
+    if (state.collapsed.has(folder)) continue;
+    out.push(...sortedIndices(s.map((_, i) => i).filter((i) => s[i].folder === folder)));
+  }
+  return out;
+}
 
-  // Category label
-  const catLabel = document.createElement('div');
-  catLabel.className = 'defaults-category';
-  catLabel.textContent = 'Date & Time'; // intentional mixed-case section label
-  defaultsPageList.appendChild(catLabel);
+function folders() {
+  return [...new Set(state.macros.snippets.map((m) => m.folder).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
 
-  DEFAULT_SNIPPETS.forEach((snippet) => {
-    const row = document.createElement('div');
-    row.className = 'snippet-row';
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q);
+  if (i === -1) return esc(text);
+  return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length));
+}
 
-    const liveValue = snippet.resolve();
-
-    row.innerHTML = `
-      <div class="snippet-info">
-        <div class="snippet-name">${escHtml(snippet.title)}</div>
-        <div class="snippet-desc">${escHtml(snippet.desc)} &mdash; ${escHtml(liveValue)}</div>
+function macroRow(i, q) {
+  const m = state.macros.snippets[i];
+  const issues = macroIssues(i);
+  const row = h(`
+    <button class="macro-item${i === state.selected ? ' active' : ''}" role="option" data-index="${i}" aria-selected="${i === state.selected}">
+      <div class="row">
+        <span class="title${m.title ? '' : ' untitled'}">${m.title ? highlight(m.title, q) : 'Untitled'}</span>
+        ${m.pinned ? `<span class="pin-mark" title="Pinned">${ICON.pinFill}</span>` : ''}
+        ${issues.warn ? '<span class="warn-dot" title="Needs attention"></span>' : ''}
+        ${m.abbr ? `<span class="chip">${highlight(state.macros.prefix + m.abbr, q)}</span>` : ''}
       </div>
-      <div class="snippet-right">
-        <span class="snippet-abbr">${escHtml(prefix + snippet.abbr)}</span>
-        <svg class="snippet-lock" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      </div>
-    `;
-    defaultsPageList.appendChild(row);
-  });
+      <div class="preview">${esc(preview(m.content, 80)) || '&nbsp;'}</div>
+    </button>`);
+  row.addEventListener('click', () => go('editor', i));
+  return row;
 }
 
-// ---------------------------------------------------------------------------
-// Render user macro list
-// ---------------------------------------------------------------------------
-function renderList(filter = '') {
-  const q = filter.toLowerCase();
-  macroList.innerHTML = '';
+function renderList() {
+  const s = state.macros.snippets;
+  const q = state.search.trim().toLowerCase();
+  el.count.textContent = s.length || '';
+  el.list.innerHTML = '';
 
-  // Update section label — filtered count when searching, total otherwise
-  let visibleCount = 0;
-  data.snippets.forEach((macro) => {
-    const matches =
-      !q ||
-      macro.title.toLowerCase().includes(q) ||
-      macro.abbr.toLowerCase().includes(q) ||
-      stripHtml(macro.content).toLowerCase().includes(q);
-    if (matches) visibleCount++;
-  });
-  const sectionLabel = document.querySelector('.section-label');
-  if (sectionLabel) {
-    sectionLabel.textContent = q
-      ? `My Macros · ${visibleCount} of ${data.snippets.length}`
-      : `My Macros · ${data.snippets.length}`;
+  if (!s.length) {
+    el.list.append(h(`<div class="list-empty">No macros yet.<br>Press ${MOD()}N to create one.</div>`));
+    return;
   }
 
-  data.snippets.forEach((macro, i) => {
-    const matchesFilter =
-      !q ||
-      macro.title.toLowerCase().includes(q) ||
-      macro.abbr.toLowerCase().includes(q) ||
-      stripHtml(macro.content).toLowerCase().includes(q);
+  if (q) {
+    const hits = visibleOrder();
+    if (!hits.length) el.list.append(h(`<div class="list-empty">No macros match “${esc(state.search.trim())}”.</div>`));
+    hits.forEach((i) => el.list.append(macroRow(i, q)));
+    return;
+  }
 
-    if (!matchesFilter) return;
+  sortedIndices(s.map((_, i) => i).filter((i) => !s[i].folder)).forEach((i) => el.list.append(macroRow(i, '')));
 
-    const preview = stripHtml(macro.content).replace(/\n/g, ' ').trim();
-    const tooltipText = preview.length > 80
-      ? preview.slice(0, 80) + '\u2026'
-      : preview;
+  for (const folder of folders()) {
+    const members = sortedIndices(s.map((_, i) => i).filter((i) => s[i].folder === folder));
+    const collapsed = state.collapsed.has(folder);
+    const head = h(`
+      <button class="folder-header${collapsed ? ' collapsed' : ''}">
+        ${ICON.chevron}<span>${esc(folder)}</span><span class="count">${members.length}</span>
+      </button>`);
+    head.addEventListener('click', () => {
+      if (collapsed) state.collapsed.delete(folder); else state.collapsed.add(folder);
+      writeLocal('collapsed', [...state.collapsed]);
+      renderList();
+    });
+    el.list.append(head);
+    if (!collapsed) members.forEach((i) => el.list.append(macroRow(i, '')));
+  }
+}
 
-    const li = document.createElement('li');
-    li.className = 'macro-item' + (i === selectedIndex ? ' active' : '');
-    li.innerHTML = `
-      <span class="macro-title">${escHtml(macro.title || 'Untitled')}</span>
-      <span class="macro-abbr">${escHtml(data.prefix + macro.abbr)}</span>
-    `;
+function moveSelection(delta) {
+  const order = visibleOrder();
+  if (!order.length) return;
+  const pos = order.indexOf(state.selected);
+  const next = pos === -1 ? (delta > 0 ? 0 : order.length - 1) : Math.min(order.length - 1, Math.max(0, pos + delta));
+  go('editor', order[next]).then(() => {
+    $(`.macro-item[data-index="${state.selected}"]`)?.scrollIntoView({ block: 'nearest' });
+  });
+}
 
-    if (tooltipText) {
-      li.addEventListener('mouseenter', () => {
-        tooltip.textContent = tooltipText;
-        tooltip.classList.add('visible');
-      });
-      li.addEventListener('mouseleave', () => {
-        tooltip.classList.remove('visible');
-      });
+// ---------------------------------------------------------------------------
+// Sidebar footer — status, permission and update banners
+// ---------------------------------------------------------------------------
+function renderFooter() {
+  el.footer.innerHTML = '';
+  const u = state.update;
+
+  if (!state.accessibility) {
+    const b = h(`
+      <div class="banner warn">
+        <strong>Allow Accessibility access</strong>
+        <p>macOS needs this before macros can expand in other apps.</p>
+        <button class="btn small primary">Open System Settings</button>
+      </div>`);
+    b.querySelector('button').addEventListener('click', () => api.requestAccessibility());
+    el.footer.append(b);
+  }
+
+  if (u.status === 'ready' || u.status === 'manual') {
+    const b = h(`
+      <div class="banner">
+        <strong>${u.status === 'ready' ? 'Update ready' : 'Update available'}</strong>
+        <p>Version ${esc(u.version)} ${u.status === 'ready' ? 'is downloaded. Restart to finish — it only takes a second.' : 'is ready to download.'}</p>
+        <button class="btn small primary">${u.status === 'ready' ? 'Restart & Update' : 'Download'}</button>
+      </div>`);
+    b.querySelector('button').addEventListener('click', () => api.installUpdate());
+    el.footer.append(b);
+  } else if (u.status === 'downloading') {
+    el.footer.append(h(`
+      <div class="banner">
+        <strong>Downloading ${esc(u.version || 'update')}…</strong>
+        <div class="progress"><span style="width:${u.percent || 4}%"></span></div>
+      </div>`));
+  }
+
+  const paused = state.settings.paused;
+  const blocked = !state.accessibility;
+  const row = h(`
+    <div class="status-row">
+      <span class="status-dot${paused ? ' paused' : blocked ? ' blocked' : ''}"></span>
+      <span>${paused ? 'Paused' : blocked ? 'Waiting for permission' : 'Expanding'}</span>
+      <span class="spacer"></span>
+      <button class="link-btn">${paused ? 'Resume' : 'Pause'}</button>
+    </div>`);
+  row.querySelector('button').addEventListener('click', () => setSettings({ paused: !paused }));
+  el.footer.append(row);
+}
+
+// ---------------------------------------------------------------------------
+// Toolbar
+// ---------------------------------------------------------------------------
+function setToolbar(left, right = []) {
+  el.tbLeft.innerHTML = left;
+  el.tbRight.innerHTML = '';
+  right.forEach((n) => el.tbRight.append(n));
+}
+
+function toolButton(icon, title, onClick, cls = '') {
+  const b = h(`<button class="icon-btn ${cls}" title="${esc(title)}">${icon}</button>`);
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+// ---------------------------------------------------------------------------
+// Views
+// ---------------------------------------------------------------------------
+function renderView() {
+  el.view.innerHTML = '';
+  if (state.view === 'editor' && state.macros.snippets[state.selected]) return renderEditor();
+  if (state.view === 'builtins') return renderBuiltIns();
+  if (state.view === 'settings') return renderSettings();
+  state.view = 'overview';
+  renderNav();
+  return renderOverview();
+}
+
+// ---- Overview --------------------------------------------------------------
+function renderOverview() {
+  const quick = h(`<button class="btn">${ICON.search}Quick Insert</button>`);
+  quick.addEventListener('click', () => api.showPalette());
+  const add = h(`<button class="btn primary">${ICON.plus}New Macro</button>`);
+  add.addEventListener('click', newMacro);
+  setToolbar('', [quick, add]);
+
+  const s = state.macros.snippets;
+  const prefix = state.macros.prefix;
+  const paused = state.settings.paused;
+  const statusText = !state.accessibility
+    ? 'Macro Manager needs Accessibility permission before it can expand anything.'
+    : paused
+      ? 'Expansion is paused. Resume it from the bottom of the sidebar.'
+      : `Type ${prefix} plus an abbreviation in any app, then press Space, Tab or Enter.`;
+
+  const page = h('<div class="page"></div>');
+  page.append(h(`
+    <div class="page-head">
+      <h1>Overview</h1>
+      <p class="status-line">${esc(statusText)}</p>
+    </div>`));
+
+  if (!s.length) {
+    const hero = h(`
+      <div class="hero">
+        <h2>Create your first macro</h2>
+        <p>Save text you type over and over — signatures, replies, addresses — and give it a short abbreviation.</p>
+        <div class="example"><span class="chip">${esc(prefix)}sig</span> → <span>Best, Nate</span></div>
+        <div><button class="btn primary">${ICON.plus}New Macro</button></div>
+      </div>`);
+    hero.querySelector('button').addEventListener('click', newMacro);
+    page.append(hero);
+  } else {
+    const total = Object.entries(state.usage)
+      .filter(([abbr]) => s.some((m) => m.abbr === abbr))
+      .reduce((n, [, c]) => n + c, 0);
+    page.append(h(`
+      <div class="stats">
+        <div class="stat lead"><div class="value">${(state.stats.lifetime || total).toLocaleString()}</div><div class="label">Lifetime expansions</div></div>
+        <div class="stat"><div class="value">${dayTotal(state.today || dayKey(new Date())).toLocaleString()}</div><div class="label">Today</div></div>
+        <div class="stat"><div class="value">${currentStreak()}<small> day${currentStreak() === 1 ? '' : 's'}</small></div><div class="label">Streak · best ${bestStreak()}</div></div>
+        <div class="stat"><div class="value">${formatMinutes((state.stats.charsSaved || 0) / CHARS_PER_MINUTE || timeSavedMinutes())}</div><div class="label">Typing saved</div></div>
+      </div>`));
+
+    page.append(milestoneCard());
+    page.append(h('<div class="section-title">Activity <span class="aside">Last 8 months</span></div>'));
+    page.append(heatmap(35));
+
+    const rangeUsage = usageInRange(state.range);
+    const ranked = s.map((m, i) => ({ m, i, n: rangeUsage[m.abbr] || 0 }))
+      .filter((r) => r.n > 0)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 8);
+    const head = h(`<div class="section-title">Most used <div class="segmented">${[['7', '7 days'], ['30', '30 days'], ['all', 'All time']].map(([k, t]) => `<button data-r="${k}" aria-pressed="${state.range === k}">${t}</button>`).join('')}</div></div>`);
+    head.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { state.range = b.dataset.r; writeLocal('range', b.dataset.r); renderView(); }));
+    page.append(head);
+    if (!ranked.length) {
+      page.append(h(`<div class="list-empty">${state.range === 'all' ? 'Use a macro and it’ll show up here.' : 'No expansions in this period yet.'}</div>`));
+    } else {
+      const box = h('<div class="ranked"></div>');
+      const max = ranked[0].n;
+      for (const r of ranked) {
+        const row = h(`
+          <button class="ranked-row">
+            <span class="name"><span>${esc(r.m.title || 'Untitled')}</span><span class="chip">${esc(prefix + r.m.abbr)}</span></span>
+            <span class="bar"><span style="width:${Math.max(4, (r.n / max) * 100)}%"></span></span>
+            <span class="num">${r.n.toLocaleString()}</span>
+          </button>`);
+        row.addEventListener('click', () => go('editor', r.i));
+        box.append(row);
+      }
+      page.append(box);
     }
-
-    li.addEventListener('click', () => selectMacro(i));
-    macroList.appendChild(li);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Select user macro
-// ---------------------------------------------------------------------------
-function selectMacro(index) {
-  // If defaults page is showing, hide it first
-  if (showingDefaults) hideDefaultsPage();
-
-  selectedIndex = index;
-  const macro = data.snippets[index];
-  if (!macro) return showEmpty();
-
-  editorEmpty.classList.add('hidden');
-  editorForm.classList.remove('hidden');
-  defaultsPage.classList.add('hidden');
-  setHomeButtonVisible(true);
-
-  fieldTitle.value = macro.title;
-  fieldAbbr.value = macro.abbr;
-  fieldContent.innerHTML = macro.content;
-  updatePrefixDisplay();
-  updateEditorHeader();
-
-  renderList(searchInput.value);
-}
-
-// ---------------------------------------------------------------------------
-// Show empty state (home screen)
-// ---------------------------------------------------------------------------
-function showEmpty() {
-  selectedIndex = -1;
-  editorEmpty.classList.remove('hidden');
-  editorForm.classList.add('hidden');
-  defaultsPage.classList.add('hidden');
-  setHomeButtonVisible(false);
-  renderList(searchInput.value);
-  renderHomeScreen();
-}
-
-// ---------------------------------------------------------------------------
-// Home screen
-// ---------------------------------------------------------------------------
-async function renderHomeScreen() {
-  // Workspace header
-  document.getElementById('home-date').textContent = 'Your Workspace';
-
-  // Usage data
-  let usage = {};
-  try { usage = await window.macroAPI.getUsage(); } catch { /* not in Electron */ }
-
-  // Card 1 — Times Expanded
-  const totalExp = Object.values(usage).reduce((sum, n) => sum + n, 0);
-  document.getElementById('stat-expansions').textContent = totalExp.toLocaleString();
-
-  // Card 2 — Most Used (prefix + abbr)
-  let topAbbr = null, topCount = 0;
-  for (const [abbr, count] of Object.entries(usage)) {
-    if (count > topCount) { topCount = count; topAbbr = abbr; }
   }
-  const topMacro = topAbbr ? data.snippets.find((s) => s.abbr === topAbbr) : null;
-  document.getElementById('stat-top-name').textContent = topMacro
-    ? (data.prefix || '/') + topMacro.abbr
-    : '—';
 
-  // Card 3 — Time Saved (30 sec per expansion)
-  const savedSeconds = totalExp * 30;
-  const savedMinutes = savedSeconds / 60;
-  let timeSavedText;
-  if (savedMinutes < 60) {
-    timeSavedText = Math.round(savedMinutes) + ' min';
-  } else {
-    timeSavedText = (savedMinutes / 60).toFixed(1) + ' hrs';
+  page.append(h('<div class="section-title">Tips</div>'));
+  const accelKeys = prettyAccel(state.settings.quickInsertShortcut);
+  const tips = h(`
+    <div class="tips">
+      <div class="tip">
+        <div class="tip-head">${ICON.search}Quick Insert</div>
+        <p>Forgot an abbreviation? Search every macro from any app and paste it in one step.</p>
+        <div class="keys"><span class="keycap">${esc(accelKeys)}</span></div>
+      </div>
+      <div class="tip">
+        <div class="tip-head">${ICON.braces}Smart placeholders</div>
+        <p>Drop in today’s date, your clipboard, or where the cursor should land with <span class="chip">{date}</span> <span class="chip">{cursor}</span>.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-head">${ICON.folder}Folders</div>
+        <p>Give macros a folder to keep long lists tidy. Folders show up in the sidebar.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-head">${ICON.shield}Backed up daily</div>
+        <p>Your macros stay on this computer, with two weeks of daily backups. Export any time from Settings.</p>
+      </div>
+    </div>`);
+  page.append(tips);
+  el.view.append(page);
+}
+
+function milestoneCard() {
+  const total = state.stats.lifetime || 0;
+  const next = nextMilestone(total);
+  const prev = [...MILESTONES].reverse().find((m) => m <= total) || 0;
+  const earned = MILESTONES.filter((m) => m <= total);
+  const pct = next ? Math.round(((total - prev) / (next - prev)) * 100) : 100;
+  const short = (n) => (n >= 1000000 ? `${n / 1000000}M` : n >= 1000 ? `${n / 1000}k` : String(n));
+  return h(`
+    <div class="milestone">
+      <div class="milestone-head">
+        ${ICON.trophy}
+        <div class="main">
+          <strong>${next ? `Next milestone: ${next.toLocaleString()} expansions` : 'Every milestone unlocked'}</strong>
+          <span>${next ? `${(next - total).toLocaleString()} to go` : 'Legendary.'}</span>
+        </div>
+      </div>
+      <div class="bar big"><span style="width:${Math.max(2, pct)}%"></span></div>
+      <div class="badges">
+        ${MILESTONES.slice(0, Math.max(earned.length + 3, 6)).map((m) => `<span class="badge${m <= total ? ' earned' : ''}" title="${m.toLocaleString()} expansions">${short(m)}</span>`).join('')}
+      </div>
+    </div>`);
+}
+
+// GitHub-style calendar: one column per week, one cell per day.
+function heatmap(weeks) {
+  const today = new Date();
+  const days = lastDays(weeks * 7 - (6 - today.getDay()));
+  const max = Math.max(1, ...days.map(dayTotal));
+  const level = (n) => (n === 0 ? 0 : Math.min(4, Math.ceil((n / max) * 4)));
+  const pad = new Date(`${days[0]}T12:00:00`).getDay();
+  const cells = Array(pad).fill('<span class="cell empty"></span>');
+  for (const k of days) {
+    const n = dayTotal(k);
+    const label = new Date(`${k}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    cells.push(`<span class="cell l${level(n)}" title="${label} · ${n} expansion${n === 1 ? '' : 's'}"></span>`);
   }
-  document.getElementById('stat-time-saved').textContent = totalExp > 0 ? timeSavedText : '—';
-
-  // Donut chart
-  renderDonutChart(usage, data.snippets);
-
-  // Quick access cards: /ts, /date, /time
-  const quickRow = document.getElementById('home-quick-row');
-  quickRow.innerHTML = '';
-  ['ts', 'date', 'time'].forEach((abbr) => {
-    const snippet = DEFAULT_SNIPPETS.find((s) => s.abbr === abbr);
-    if (!snippet) return;
-    const value = snippet.resolve();
-    const card = document.createElement('button');
-    card.className = 'quick-card';
-    card.innerHTML = `
-      <div class="quick-card-label">${escHtml((data.prefix || '/') + abbr)}</div>
-      <div class="quick-card-value">${escHtml(value)}</div>
-    `;
-    card.addEventListener('click', () => {
-      navigator.clipboard.writeText(value).then(() => {
-        card.classList.add('copied');
-        setTimeout(() => card.classList.remove('copied'), 1200);
-      });
-    });
-
-    card.addEventListener('mouseenter', () => {
-      tooltip.textContent = snippet.resolve();
-      tooltip.classList.add('visible');
-    });
-    card.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
-
-    quickRow.appendChild(card);
-  });
+  const total = days.reduce((a, k) => a + dayTotal(k), 0);
+  const active = days.filter((k) => dayTotal(k) > 0).length;
+  return h(`
+    <div class="heatmap-card">
+      <div class="heatmap" style="grid-template-columns: repeat(${Math.ceil(cells.length / 7)}, 13px)">${cells.join('')}</div>
+      <div class="heatmap-foot">
+        <span>${total.toLocaleString()} expansions on ${active} day${active === 1 ? '' : 's'}</span>
+        <span class="legend">Less <span class="cell l0"></span><span class="cell l1"></span><span class="cell l2"></span><span class="cell l3"></span><span class="cell l4"></span> More</span>
+      </div>
+    </div>`);
 }
 
-function updatePrefixDisplay() {
-  const p = data.prefix || '/';
-  prefixBadge.textContent = p;
-  prefixKey.textContent = p;
+function sparkline(values) {
+  const max = Math.max(1, ...values);
+  return `<span class="spark" title="Last ${values.length} days">${values.map((v) => `<span style="height:${v ? Math.max(14, (v / max) * 100) : 6}%" class="${v ? 'on' : ''}"></span>`).join('')}</span>`;
 }
 
-function updateEditorHeader() {
-  if (selectedIndex < 0) return;
-  const title = fieldTitle.value.trim() || 'Untitled';
-  const abbr = fieldAbbr.value.trim();
-  editorHeading.textContent = title;
-  editorSubtitle.textContent = (data.prefix || '/') + abbr;
-}
+// ---- Editor ----------------------------------------------------------------
+function renderEditor() {
+  const i = state.selected;
+  const m = state.macros.snippets[i];
+  const prefix = state.macros.prefix;
 
-// ---------------------------------------------------------------------------
-// CRUD
-// ---------------------------------------------------------------------------
-async function saveCurrent() {
-  if (selectedIndex < 0) return;
+  setToolbar(
+    `${m.folder ? `<span class="crumb">${esc(m.folder)}</span><span class="sep">/</span>` : ''}<span class="crumb current">${esc(m.title || 'Untitled')}</span>`,
+    [
+      h('<span class="save-status">Saved</span>'),
+      pinButton(m),
+      toolButton(ICON.copy, `Copy expansion`, copyExpansion),
+      toolButton(ICON.duplicate, `Duplicate (${MOD()}D)`, duplicateMacro),
+      toolButton(ICON.trash, 'Delete', deleteMacro, 'danger'),
+    ],
+  );
 
-  data.snippets[selectedIndex] = {
-    title: fieldTitle.value.trim() || 'Untitled',
-    abbr:  fieldAbbr.value.trim(),
-    content: fieldContent.innerText || fieldContent.textContent,
+  const usage = state.usage[m.abbr] || 0;
+  const week = macroDaily(m.abbr, 7).reduce((a, b) => a + b, 0);
+  const ed = h(`
+    <div class="editor">
+      <input class="title-input" id="f-title" placeholder="Untitled" value="${esc(m.title)}" autocomplete="off" />
+      <div class="props">
+        <div class="prop">
+          <div class="prop-label">${ICON.keyboard}Abbreviation</div>
+          <div class="prop-value">
+            <label class="prop-input-wrap">
+              <span class="prefix">${esc(prefix)}</span>
+              <input id="f-abbr" class="mono" placeholder="sig" value="${esc(m.abbr)}" autocomplete="off" spellcheck="false" />
+            </label>
+            <div id="abbr-msg" class="prop-msg hidden"></div>
+          </div>
+        </div>
+        <div class="prop">
+          <div class="prop-label">${ICON.folder}Folder</div>
+          <div class="prop-value">
+            <label class="prop-input-wrap">
+              <input id="f-folder" placeholder="None" value="${esc(m.folder || '')}" autocomplete="off" list="folder-options" />
+              <datalist id="folder-options">${folders().map((f) => `<option value="${esc(f)}">`).join('')}</datalist>
+            </label>
+          </div>
+        </div>
+        <div class="prop">
+          <div class="prop-label">${ICON.chart}Used</div>
+          <div class="prop-value"><span class="prop-static used">${usage ? `${usage.toLocaleString()} time${usage === 1 ? '' : 's'} · ${week} this week ${sparkline(macroDaily(m.abbr, 30))}` : 'Not yet'}</span></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="content-head">
+        <span class="label">Expands to</span>
+        <button class="btn small" id="btn-insert">${ICON.braces}Insert</button>
+      </div>
+      <textarea id="f-content" class="content-input" placeholder="Type what this macro should expand to…" spellcheck="true">${esc(m.content)}</textarea>
+      <div class="preview-card hidden" id="preview-card">
+        <div class="head"><span>Preview</span><span>Placeholders filled in</span></div>
+        <div class="body" id="preview-body"></div>
+      </div>
+      <div class="hint" id="hint"></div>
+    </div>`);
+  el.view.append(ed);
+
+  const fTitle = $('#f-title'), fAbbr = $('#f-abbr'), fFolder = $('#f-folder'), fContent = $('#f-content');
+
+  const autosize = () => {
+    fContent.style.height = 'auto';
+    fContent.style.height = Math.max(120, fContent.scrollHeight) + 'px';
   };
+  autosize();
 
-  await persist();
-  updateEditorHeader();
-  renderList(searchInput.value);
-}
-
-function requestDelete() {
-  if (selectedIndex < 0) return;
-  deleteModal.classList.remove('hidden');
-}
-
-async function confirmDelete() {
-  deleteModal.classList.add('hidden');
-  if (selectedIndex < 0) return;
-  const deletedAbbr = data.snippets[selectedIndex].abbr;
-  data.snippets.splice(selectedIndex, 1);
-  await persist();
-  if (deletedAbbr) await window.macroAPI.deleteUsage(deletedAbbr);
-  showEmpty();
-}
-
-function cancelDelete() {
-  deleteModal.classList.add('hidden');
-}
-
-function addNew() {
-  if (showingDefaults) hideDefaultsPage();
-  data.snippets.push({ title: '', abbr: '', content: '' });
-  selectMacro(data.snippets.length - 1);
-  fieldTitle.focus();
-  renderList(searchInput.value);
-}
-
-async function persist() {
-  await window.macroAPI.save(data);
-}
-
-// ---------------------------------------------------------------------------
-// Copy button
-// ---------------------------------------------------------------------------
-const COPY_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M17 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>';
-const CHECK_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-
-function copyContent() {
-  const text = stripHtml(fieldContent.innerHTML);
-  navigator.clipboard.writeText(text).then(() => {
-    btnCopy.classList.add('copied');
-    btnCopy.querySelector('.copy-icon').innerHTML = CHECK_ICON_SVG;
-    btnCopy.querySelector('.copy-label').textContent = 'Copied!';
-
-    setTimeout(() => {
-      btnCopy.classList.remove('copied');
-      btnCopy.querySelector('.copy-icon').innerHTML = COPY_ICON_SVG;
-      btnCopy.querySelector('.copy-label').textContent = 'Copy';
-    }, 1500);
+  fTitle.addEventListener('input', () => {
+    m.title = fTitle.value;
+    $('.crumb.current').textContent = m.title || 'Untitled';
+    scheduleSave();
+    renderList();
   });
+  fAbbr.addEventListener('input', () => {
+    m.abbr = fAbbr.value.trim();
+    scheduleSave();
+    renderList();
+    updateEditorMeta();
+  });
+  fFolder.addEventListener('input', () => {
+    m.folder = fFolder.value.trim() || undefined;
+    if (!m.folder) delete m.folder;
+    scheduleSave();
+  });
+  fFolder.addEventListener('change', renderList);
+  fContent.addEventListener('input', () => {
+    m.content = fContent.value;
+    autosize();
+    scheduleSave();
+    renderList();
+    updateEditorMeta();
+  });
+
+  $('#btn-insert').addEventListener('click', (e) => openInsertMenu(e.currentTarget, fContent));
+
+  updateEditorMeta();
+  if (!m.title && !m.abbr && !m.content) fTitle.focus();
 }
 
-// ---------------------------------------------------------------------------
-// Prefix change modal
-// ---------------------------------------------------------------------------
-function openPrefixModal() {
-  document.getElementById('modal-prefix-display').textContent = data.prefix || '/';
-  prefixModal.classList.remove('hidden');
-  document.addEventListener('keydown', handlePrefixKey);
+function pinButton(m) {
+  const b = toolButton(m.pinned ? ICON.pinFill : ICON.pin, m.pinned ? 'Unpin from tray menu' : 'Pin to tray menu', async () => {
+    if (m.pinned) delete m.pinned; else m.pinned = true;
+    await flushSave();
+    renderList();
+    b.innerHTML = m.pinned ? ICON.pinFill : ICON.pin;
+    b.title = m.pinned ? 'Unpin from tray menu' : 'Pin to tray menu';
+    b.classList.toggle('on', Boolean(m.pinned));
+    toast(m.pinned ? 'Pinned to the tray menu' : 'Unpinned');
+  }, m.pinned ? 'on' : '');
+  return b;
 }
 
-function closePrefixModal() {
-  prefixModal.classList.add('hidden');
-  document.removeEventListener('keydown', handlePrefixKey);
+let previewSeq = 0;
+async function updateEditorMeta() {
+  const i = state.selected;
+  const m = state.macros.snippets[i];
+  if (!m) return;
+  const prefix = state.macros.prefix;
+
+  const msg = $('#abbr-msg');
+  const issues = macroIssues(i);
+  const text = issues.warn || issues.info;
+  msg.className = `prop-msg ${issues.warn ? 'warn' : 'info'}${text ? '' : ' hidden'}`;
+  msg.textContent = text || '';
+
+  const hint = $('#hint');
+  hint.innerHTML = m.abbr && !abbrProblem(m.abbr, prefix)
+    ? `Type <span class="chip">${esc(prefix + m.abbr)}</span> then Space, Tab or Enter in any app.`
+    : '';
+
+  // Only show the preview when placeholders change what gets pasted.
+  const card = $('#preview-card');
+  if (!/\{[a-z0-9+-]+\}/i.test(m.content)) { card.classList.add('hidden'); return; }
+  const seq = ++previewSeq;
+  const { text: out, cursorBack } = await api.previewTemplate(m.content);
+  if (seq !== previewSeq || !$('#preview-body')) return;
+  const cut = Array.from(out);
+  const at = cut.length - cursorBack;
+  $('#preview-body').innerHTML = cursorBack
+    ? esc(cut.slice(0, at).join('')) + '<span class="caret"></span>' + esc(cut.slice(at).join(''))
+    : esc(out);
+  card.classList.remove('hidden');
 }
 
-function handlePrefixKey(e) {
-  e.preventDefault();
-  e.stopPropagation();
-
-  if (e.key.length !== 1) return;
-  if (/[a-zA-Z0-9]/.test(e.key)) return;
-
-  // Show the new prefix in the badge before closing
-  document.getElementById('modal-prefix-display').textContent = e.key;
-
-  data.prefix = e.key;
-  updatePrefixDisplay();
-  updateEditorHeader();
-  persist();
-  renderList(searchInput.value);
-  if (showingDefaults) renderDefaultsPage();
-
-  // Brief pause so the badge update is visible before the modal exits
-  setTimeout(closePrefixModal, 160);
+function openInsertMenu(anchor, textarea) {
+  openMenu(anchor, [
+    { label: 'Insert placeholder' },
+    ...state.tokens.map((t) => ({
+      text: t.label,
+      sub: t.desc,
+      right: t.token,
+      onClick: () => {
+        const { selectionStart: a, selectionEnd: b, value } = textarea;
+        textarea.focus();
+        textarea.setRangeText(t.token, a, b, 'end');
+        textarea.dispatchEvent(new Event('input'));
+        if (t.token === '{date+7}') {
+          // Select the number so it's easy to change.
+          const pos = textarea.selectionEnd - 2;
+          textarea.setSelectionRange(pos, pos + 1);
+        }
+        void value;
+      },
+    })),
+  ], { align: 'right' });
 }
 
-// ---------------------------------------------------------------------------
-// Theme
-// ---------------------------------------------------------------------------
-function applyTheme() {
-  if (isDark) {
-    document.body.classList.remove('light-mode');
-    settingsThemeTgl.classList.add('on');
-  } else {
-    document.body.classList.add('light-mode');
-    settingsThemeTgl.classList.remove('on');
+async function newMacro() {
+  if (state.view === 'editor' && saveTimer) await flushSave();
+  const s = state.macros.snippets;
+  // Reuse an existing blank draft instead of stacking up new ones.
+  const blank = s.findIndex((m) => !m.title && !m.abbr && !m.content);
+  if (blank !== -1) return go('editor', blank);
+  const folder = state.view === 'editor' ? s[state.selected]?.folder : undefined;
+  s.push({ title: '', abbr: '', content: '', ...(folder ? { folder } : {}) });
+  state.search = '';
+  el.search.value = '';
+  await go('editor', s.length - 1);
+}
+
+async function duplicateMacro() {
+  const m = state.macros.snippets[state.selected];
+  if (!m) return;
+  await flushSave();
+  let abbr = `${m.abbr}2`;
+  for (let n = 3; state.macros.snippets.some((s) => s.abbr.toLowerCase() === abbr.toLowerCase()); n++) abbr = `${m.abbr}${n}`;
+  const copy = { ...m, title: `${m.title || 'Untitled'} copy`, abbr };
+  state.macros.snippets.splice(state.selected + 1, 0, copy);
+  state.macros = await api.saveMacros(state.macros);
+  await go('editor', state.selected + 1);
+  toast('Duplicated');
+}
+
+async function deleteMacro() {
+  const m = state.macros.snippets[state.selected];
+  if (!m) return;
+  const empty = !m.title && !m.abbr && !m.content;
+  if (!empty && !(await api.confirmDelete(m.title))) return;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  state.macros.snippets.splice(state.selected, 1);
+  state.macros = await api.saveMacros(state.macros);
+  if (m.abbr && !state.macros.snippets.some((s) => s.abbr === m.abbr)) state.usage = await api.deleteUsage(m.abbr);
+  state.view = 'overview';
+  state.selected = -1;
+  render();
+  if (!empty) toast('Macro deleted');
+}
+
+async function copyExpansion() {
+  const m = state.macros.snippets[state.selected];
+  if (!m) return;
+  const { text } = await api.previewTemplate(m.content);
+  await navigator.clipboard.writeText(text);
+  toast('Copied to clipboard');
+}
+
+// ---- Built-ins -------------------------------------------------------------
+async function renderBuiltIns() {
+  setToolbar('');
+  const prefix = state.macros.prefix;
+  const page = h(`
+    <div class="page">
+      <div class="page-head">
+        <h1>Date &amp; Time</h1>
+        <p>Built-in abbreviations that always type the current date or time. Click one to copy it. A macro with the same abbreviation replaces the built-in.</p>
+      </div>
+      <div class="list-card" id="builtin-list"></div>
+    </div>`);
+  el.view.append(page);
+  const list = $('#builtin-list');
+  for (const b of state.builtIns) {
+    const { text } = await api.previewTemplate(`{${b.abbr}}`);
+    const overridden = state.macros.snippets.some((m) => m.abbr.toLowerCase() === b.abbr);
+    const row = h(`
+      <button class="list-row">
+        <div class="main">
+          <div class="name">${esc(b.title)}</div>
+          <div class="sub">${overridden ? 'Replaced by one of your macros' : esc(b.desc)}</div>
+        </div>
+        <span class="value">${esc(text)}</span>
+        <span class="chip">${esc(prefix + b.abbr)}</span>
+      </button>`);
+    row.addEventListener('click', async () => {
+      const { text: now } = await api.previewTemplate(`{${b.abbr}}`);
+      await navigator.clipboard.writeText(now);
+      toast(`Copied ${now}`);
+    });
+    list.append(row);
   }
-  localStorage.setItem('theme', isDark ? 'dark' : 'light');
 }
 
-function toggleTheme() {
-  isDark = !isDark;
-  applyTheme();
+// ---- Settings --------------------------------------------------------------
+async function setSettings(patch) {
+  state.settings = await api.setSettings(patch);
+  renderFooter();
+  if (state.view === 'settings') renderView();
+  if (state.view === 'overview') renderView();
+  return state.settings;
 }
 
-function loadTheme() {
-  const saved = localStorage.getItem('theme');
-  isDark = saved !== 'light'; // default to dark if no preference saved
-  applyTheme();
+function switchEl(on, onToggle) {
+  const b = h(`<button class="switch" role="switch" aria-checked="${on}"></button>`);
+  b.addEventListener('click', () => onToggle(!on));
+  return b;
 }
 
-// ---------------------------------------------------------------------------
-// Settings popover
-// ---------------------------------------------------------------------------
-function openSettings() {
-  const rect = btnSettings.getBoundingClientRect();
-  settingsPopover.style.left = rect.left + 'px';
-  settingsPopover.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-  settingsPopover.classList.add('open');
-  settingsOpen = true;
+function groupRow({ name, sub, subClass = '', controls = [] }) {
+  const row = h(`
+    <div class="group-row">
+      <div class="main"><div class="name">${name}</div>${sub ? `<div class="sub ${subClass}">${sub}</div>` : ''}</div>
+      <div class="controls"></div>
+    </div>`);
+  controls.forEach((c) => row.querySelector('.controls').append(c));
+  return row;
 }
 
-function closeSettings() {
-  settingsPopover.classList.remove('open');
-  settingsOpen = false;
+function group(label, rows) {
+  const frag = document.createDocumentFragment();
+  frag.append(h(`<div class="group-label">${label}</div>`));
+  const g = h('<div class="group"></div>');
+  rows.forEach((r) => g.append(r));
+  frag.append(g);
+  return frag;
 }
 
-// ---------------------------------------------------------------------------
-// Listener status
+function button(label, onClick, cls = '') {
+  const b = h(`<button class="btn ${cls}">${label}</button>`);
+  b.addEventListener('click', onClick);
+  return b;
+}
 
-// ---------------------------------------------------------------------------
-// Live header update while typing
-// ---------------------------------------------------------------------------
-fieldTitle.addEventListener('input', updateEditorHeader);
-fieldAbbr.addEventListener('input', updateEditorHeader);
+// Convert a keydown into an Electron accelerator string.
+function accelFromEvent(e) {
+  const mods = [];
+  if (e.metaKey) mods.push(IS_MAC() ? 'Command' : 'Super');
+  if (e.ctrlKey) mods.push('Control');
+  if (e.altKey) mods.push('Alt');
+  if (e.shiftKey) mods.push('Shift');
+  const code = e.code;
+  let key = null;
+  if (/^Key[A-Z]$/.test(code)) key = code.slice(3);
+  else if (/^Digit\d$/.test(code)) key = code.slice(5);
+  else if (/^F\d{1,2}$/.test(code)) key = code;
+  else key = { Space: 'Space', Period: '.', Comma: ',', Slash: '/', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']', Backslash: '\\', Minus: '-', Equal: '=', Backquote: '`', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right' }[code] || null;
+  if (!key) return null;
+  const hasRealModifier = mods.some((m) => m !== 'Shift');
+  if (!hasRealModifier && !/^F\d/.test(key)) return null;
+  return [...mods, key].join('+');
+}
 
-// ---------------------------------------------------------------------------
-// Toolbar (bold / italic / underline)
-// ---------------------------------------------------------------------------
-document.querySelectorAll('.tool-btn').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.execCommand(btn.dataset.cmd, false, null);
-    fieldContent.focus();
+function shortcutRecorder(settingKey) {
+  const b = h(`<button class="recorder">${esc(prettyAccel(state.settings[settingKey]))}</button>`);
+  let recording = false;
+  const stop = (save) => {
+    recording = false;
+    b.classList.remove('recording');
+    document.removeEventListener('keydown', onKey, true);
+    if (!save) b.textContent = prettyAccel(state.settings[settingKey]);
+    api.setSettings({ __suspendShortcuts: false });
+  };
+  const onKey = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === 'Escape') return stop(false);
+    if (e.key === 'Backspace' || e.key === 'Delete') { stop(true); setSettings({ [settingKey]: '' }); return; }
+    const accel = accelFromEvent(e);
+    if (!accel) { b.textContent = 'Add ⌘, Ctrl or Alt…'; return; }
+    stop(true);
+    setSettings({ [settingKey]: accel });
+  };
+  b.addEventListener('click', () => {
+    if (recording) return stop(false);
+    recording = true;
+    b.classList.add('recording');
+    b.textContent = 'Type shortcut…';
+    api.setSettings({ __suspendShortcuts: true });
+    document.addEventListener('keydown', onKey, true);
   });
-});
+  b.addEventListener('blur', () => recording && stop(false));
+  return b;
+}
+
+function prefixPicker() {
+  const key = h(`<span class="prefix-key">${esc(state.macros.prefix)}</span>`);
+  const btn = h('<button class="btn small">Change…</button>');
+  let listening = false;
+  const stop = () => {
+    listening = false;
+    btn.textContent = 'Change…';
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === 'Escape') return stop();
+    if (e.key.length !== 1 || /[a-z0-9\s]/i.test(e.key) || !PUNCTUATION.includes(e.key)) {
+      btn.textContent = 'Use a symbol key';
+      return;
+    }
+    stop();
+    state.macros.prefix = e.key;
+    state.macros = await api.saveMacros(state.macros);
+    renderList();
+    renderView();
+    toast(`Prefix is now ${e.key}`);
+  };
+  btn.addEventListener('click', () => {
+    if (listening) return stop();
+    listening = true;
+    btn.textContent = 'Press a key…';
+    document.addEventListener('keydown', onKey, true);
+  });
+  btn.addEventListener('blur', () => listening && stop());
+  return [key, btn];
+}
+
+function updateControls() {
+  const u = state.update;
+  const map = {
+    idle:        ['', 'Check for Updates', () => api.checkForUpdates()],
+    checking:    ['Checking for updates…', null],
+    latest:      ['You’re on the latest version.', 'Check Again', () => api.checkForUpdates()],
+    downloading: [`Downloading ${u.version || ''}${u.percent ? ` — ${u.percent}%` : '…'}`, null],
+    ready:       [`Version ${u.version} is ready to install.`, 'Restart & Update', () => api.installUpdate()],
+    manual:      [`Version ${u.version} is available.`, 'Download', () => api.installUpdate()],
+    error:       [u.message || 'Couldn’t check for updates.', 'Try Again', () => api.checkForUpdates()],
+  };
+  return map[u.status] || map.idle;
+}
+
+function renderSettings() {
+  setToolbar('');
+  const st = state.settings;
+  const errs = st.shortcutErrors || {};
+  const page = h(`
+    <div class="page">
+      <div class="page-head"><h1>Settings</h1></div>
+    </div>`);
+
+  page.append(group('Expansion', [
+    groupRow({ name: 'Trigger prefix', sub: `Type this before an abbreviation, e.g. ${esc(state.macros.prefix)}sig`, controls: prefixPicker() }),
+    groupRow({ name: 'Pause expansion', sub: 'Temporarily stop macros from expanding.', controls: [switchEl(st.paused, (v) => setSettings({ paused: v }))] }),
+    groupRow({ name: 'Launch at login', sub: 'Start quietly in the background so macros always work.', controls: [switchEl(st.launchAtLogin, (v) => setSettings({ launchAtLogin: v }))] }),
+    ...(IS_MAC() ? [groupRow({
+      name: 'Accessibility access',
+      sub: state.accessibility ? 'Granted — macros can type into other apps.' : 'Required for macros to expand in other apps.',
+      subClass: state.accessibility ? '' : 'warn',
+      controls: state.accessibility ? [] : [button('Open System Settings', () => api.requestAccessibility(), 'small')],
+    })] : []),
+  ]));
+
+  page.append(group('Shortcuts', [
+    groupRow({
+      name: 'Quick Insert',
+      sub: errs.quickInsertShortcut || 'Search your macros from any app and paste one.',
+      subClass: errs.quickInsertShortcut ? 'warn' : '',
+      controls: [shortcutRecorder('quickInsertShortcut')],
+    }),
+    groupRow({
+      name: 'Show Macro Manager',
+      sub: errs.openWindowShortcut || 'Open or hide this window.',
+      subClass: errs.openWindowShortcut ? 'warn' : '',
+      controls: [shortcutRecorder('openWindowShortcut')],
+    }),
+  ]));
+
+  const seg = h(`<div class="segmented">${['system', 'light', 'dark'].map((t) => `<button data-t="${t}" aria-pressed="${st.theme === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`);
+  seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => setSettings({ theme: b.dataset.t })));
+  page.append(group('Appearance', [groupRow({ name: 'Theme', controls: [seg] })]));
+
+  page.append(group('Your data', [
+    groupRow({
+      name: 'Back up or move your macros',
+      sub: 'Export to a file you can import on another computer.',
+      controls: [
+        button('Import…', async () => {
+          const r = await api.importMacros();
+          if (r.ok) toast(r.added ? `Imported ${r.added} macro${r.added === 1 ? '' : 's'}${r.skipped ? ` · ${r.skipped} already existed` : ''}` : 'Nothing new to import');
+          else if (r.error) toast(r.error);
+        }, 'small'),
+        button('Export…', async () => {
+          const r = await api.exportMacros();
+          if (r.ok) toast(`Exported ${r.count} macros`);
+          else if (r.error) toast(r.error);
+        }, 'small'),
+      ],
+    }),
+    groupRow({
+      name: 'Stored on this computer',
+      sub: `<span class="path">${esc(state.dataPath)}</span><br>A backup is saved each day and kept for two weeks.`,
+      controls: [button(IS_MAC() ? 'Show in Finder' : 'Show in Explorer', () => api.openDataFolder(), 'small')],
+    }),
+  ]));
+
+  const [uText, uLabel, uAction] = updateControls();
+  page.append(group('About', [
+    groupRow({
+      name: `Macro Manager ${esc(state.version)}`,
+      sub: esc(uText) || 'Updates install automatically.',
+      controls: uLabel ? [button(uLabel, uAction, 'small')] : [],
+    }),
+    groupRow({
+      name: 'Release notes & downloads',
+      sub: 'github.com/throughnateseyes/macro-manager',
+      controls: [button('Open', () => api.openReleases(), 'small')],
+    }),
+  ]));
+
+  el.view.append(page);
+}
+
+// ---------------------------------------------------------------------------
+// Popup menu
+// ---------------------------------------------------------------------------
+let menuCleanup = null;
+function openMenu(anchor, items, { align = 'left' } = {}) {
+  closeMenu();
+  el.menu.innerHTML = '';
+  for (const it of items) {
+    if (it.sep) { el.menu.append(h('<div class="menu-sep"></div>')); continue; }
+    if (it.label) { el.menu.append(h(`<div class="menu-label">${esc(it.label)}</div>`)); continue; }
+    const b = h(`
+      <button class="menu-item" role="menuitem">
+        ${it.checked !== undefined ? (it.checked ? ICON.check : '<span class="check"></span>') : ''}
+        <span class="main"><div>${esc(it.text)}</div>${it.sub ? `<div class="sub">${esc(it.sub)}</div>` : ''}</span>
+        ${it.right ? `<span class="chip">${esc(it.right)}</span>` : ''}
+      </button>`);
+    b.addEventListener('click', () => { closeMenu(); it.onClick(); });
+    el.menu.append(b);
+  }
+  el.menu.classList.remove('hidden');
+  const r = anchor.getBoundingClientRect();
+  const mw = el.menu.offsetWidth, mh = el.menu.offsetHeight;
+  let left = align === 'right' ? r.right - mw : r.left;
+  let top = r.bottom + 6;
+  if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 6);
+  left = Math.min(Math.max(8, left), window.innerWidth - mw - 8);
+  el.menu.style.left = `${left}px`;
+  el.menu.style.top = `${top}px`;
+
+  const onDown = (e) => { if (!el.menu.contains(e.target) && !anchor.contains(e.target)) closeMenu(); };
+  setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+  menuCleanup = () => document.removeEventListener('mousedown', onDown);
+}
+
+function closeMenu() {
+  el.menu.classList.add('hidden');
+  if (menuCleanup) { menuCleanup(); menuCleanup = null; }
+}
 
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
-searchInput.addEventListener('input', () => renderList(searchInput.value));
-btnNew.addEventListener('click', addNew);
-btnSave.addEventListener('click', saveCurrent);
-btnDelete.addEventListener('click', requestDelete);
-btnCopy.addEventListener('click', copyContent);
-deleteConfirm.addEventListener('click', confirmDelete);
-deleteCancel.addEventListener('click', cancelDelete);
-
-// Settings popover
-btnSettings.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (settingsOpen) closeSettings(); else openSettings();
+document.querySelectorAll('.nav-item').forEach((b) => b.addEventListener('click', () => go(b.dataset.view)));
+$('#btn-new').addEventListener('click', newMacro);
+$('#btn-sort').addEventListener('click', (e) => {
+  const opts = [['name', 'Name'], ['usage', 'Most used'], ['recent', 'Recently added']];
+  openMenu(e.currentTarget, [
+    { label: 'Sort by' },
+    ...opts.map(([k, text]) => ({
+      text,
+      checked: state.sort === k,
+      onClick: () => { state.sort = k; writeLocal('sort', k); renderList(); },
+    })),
+  ], { align: 'right' });
 });
 
-settingsThemeTgl.addEventListener('click', (e) => {
-  e.stopPropagation();
-  toggleTheme();
+el.search.addEventListener('input', () => {
+  state.search = el.search.value;
+  renderList();
+});
+el.search.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    moveSelection(e.key === 'ArrowDown' ? 1 : -1);
+  } else if (e.key === 'Enter') {
+    const first = visibleOrder()[0];
+    if (first !== undefined) go('editor', state.selected >= 0 ? state.selected : first).then(() => $('#f-content')?.focus());
+  } else if (e.key === 'Escape') {
+    el.search.value = '';
+    state.search = '';
+    renderList();
+    el.search.blur();
+  }
 });
 
-// Export / Import
-function flashSettingsBtn(btn, labelEl, message, isError = false) {
-  const original = labelEl.textContent;
-  btn.classList.add(isError ? 'error' : 'success');
-  labelEl.textContent = message;
-  setTimeout(() => {
-    btn.classList.remove('error', 'success');
-    labelEl.textContent = original;
-  }, 2500);
+function isTyping() {
+  const a = document.activeElement;
+  return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA');
 }
 
-btnExport.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  const result = await window.macroAPI.exportMacros();
-  if (result.ok) {
-    flashSettingsBtn(btnExport, btnExportLabel, 'Exported!');
-  } else if (result.error) {
-    flashSettingsBtn(btnExport, btnExportLabel, 'Export failed', true);
-  }
-  // canceled: do nothing
-});
-
-btnImport.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  const result = await window.macroAPI.importMacros();
-  if (result.ok) {
-    // Refresh local data and re-render immediately
-    data = result.data;
-    renderList(searchInput.value);
-    renderHomeScreen();
-    const msg = result.added === 1 ? 'Imported 1 macro!' : `Imported ${result.added} macros!`;
-    flashSettingsBtn(btnImport, btnImportLabel, msg);
-  } else if (result.error) {
-    flashSettingsBtn(btnImport, btnImportLabel, result.error.slice(0, 32), true);
-  }
-  // canceled: do nothing
-});
-
-// Close settings on outside click
-document.addEventListener('click', (e) => {
-  if (settingsOpen && !settingsPopover.contains(e.target) && e.target !== btnSettings) {
-    closeSettings();
-  }
-});
-
-// Default Snippets toggle
-navDefaults.addEventListener('click', () => {
-  if (showingDefaults) {
-    hideDefaultsPage();
-    showEmpty();
-  } else {
-    showDefaultsPage();
-  }
-});
-
-// Prefix button + modal
-document.getElementById('btn-prefix').addEventListener('click', openPrefixModal);
-prefixCancel.addEventListener('click', closePrefixModal);
-
-// Close modals on overlay click
-prefixModal.addEventListener('click', (e) => { if (e.target === prefixModal) closePrefixModal(); });
-deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) cancelDelete(); });
-
-// Home buttons
-btnHome.addEventListener('click', () => showEmpty());
-if (btnHomeDefaults) btnHomeDefaults.addEventListener('click', () => showEmpty());
-
-// Close modals / settings on Escape; navigate home if on a sub-page
 document.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  const k = e.key.toLowerCase();
+
+  if (mod && k === 'n') { e.preventDefault(); newMacro(); return; }
+  if (mod && (k === 'f' || k === 'k')) { e.preventDefault(); el.search.focus(); el.search.select(); return; }
+  if (mod && k === ',') { e.preventDefault(); go('settings'); return; }
+  if (mod && k === 's') { e.preventDefault(); if (state.view === 'editor') flushSave().then(() => toast('Saved')); return; }
+  if (mod && k === 'd' && state.view === 'editor') { e.preventDefault(); duplicateMacro(); return; }
+  if (mod && e.key === 'Backspace' && state.view === 'editor' && !isTyping()) { e.preventDefault(); deleteMacro(); return; }
+
   if (e.key === 'Escape') {
-    // Modals and popovers take priority
-    if (settingsOpen) { closeSettings(); return; }
-    if (!prefixModal.classList.contains('hidden')) { closePrefixModal(); return; }
-    if (!deleteModal.classList.contains('hidden')) { cancelDelete(); return; }
-    // Navigate home if a macro or defaults page is showing
-    if (!editorForm.classList.contains('hidden') || !defaultsPage.classList.contains('hidden')) {
-      showEmpty();
-    }
-  }
-});
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-  if (!prefixModal.classList.contains('hidden')) return;
-
-  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-    e.preventDefault();
-    saveCurrent();
-  }
-  if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-    e.preventDefault();
-    addNew();
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Donut chart
-// ---------------------------------------------------------------------------
-function describeArc(cx, cy, outerR, innerR, startAngle, endAngle) {
-  const toRad = (deg) => (deg - 90) * Math.PI / 180;
-  const s = toRad(startAngle);
-  const e = toRad(endAngle);
-  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-  const p = (n) => n.toFixed(3);
-  const ox1 = cx + outerR * Math.cos(s), oy1 = cy + outerR * Math.sin(s);
-  const ox2 = cx + outerR * Math.cos(e), oy2 = cy + outerR * Math.sin(e);
-  const ix1 = cx + innerR * Math.cos(s), iy1 = cy + innerR * Math.sin(s);
-  const ix2 = cx + innerR * Math.cos(e), iy2 = cy + innerR * Math.sin(e);
-  return `M ${p(ox1)} ${p(oy1)} A ${outerR} ${outerR} 0 ${largeArc} 1 ${p(ox2)} ${p(oy2)} L ${p(ix2)} ${p(iy2)} A ${innerR} ${innerR} 0 ${largeArc} 0 ${p(ix1)} ${p(iy1)} Z`;
-}
-
-function renderDonutChart(usage, snippets) {
-  const container = document.getElementById('home-top-macros');
-  container.innerHTML = '';
-
-  const COLORS = ['#5c5fef', '#4caf82', '#f59e0b', '#8b5cf6', '#ef4444', '#6b7280'];
-  const NS = 'http://www.w3.org/2000/svg';
-  const CX = 100, CY = 100, OR = 88, IR = 55, GAP = 2;
-
-  const validAbbrs = new Set(snippets.map((s) => s.abbr));
-  const filteredUsage = Object.fromEntries(
-    Object.entries(usage).filter(([abbr]) => validAbbrs.has(abbr))
-  );
-
-  const allSorted = Object.entries(filteredUsage).sort(([, a], [, b]) => b - a);
-  const total = allSorted.reduce((s, [, n]) => s + n, 0);
-
-  // Empty state
-  if (total === 0) {
-    const card = document.createElement('div');
-    card.className = 'donut-wrapper donut-empty-state';
-    card.innerHTML = `
-      <svg width="200" height="200" viewBox="0 0 200 200" class="donut-svg">
-        <circle cx="100" cy="100" r="71.5" fill="none" stroke="currentColor"
-          stroke-width="33" stroke-dasharray="6 5" opacity="0.12"/>
-      </svg>
-      <p class="donut-empty-text">Start using macros to see your stats here</p>
-    `;
-    container.appendChild(card);
+    if (!el.menu.classList.contains('hidden')) { closeMenu(); return; }
+    if (isTyping()) { document.activeElement.blur(); return; }
+    if (state.view !== 'overview') go('overview');
     return;
   }
 
-  const top5 = allSorted.slice(0, 5);
-  const restCount = allSorted.slice(5).reduce((s, [, n]) => s + n, 0);
-  const segments = top5.map(([abbr, count], i) => {
-    const macro = snippets.find((s) => s.abbr === abbr);
-    const pct   = Math.round((count / total) * 100);
-    return { abbr, count, pct, macro, color: COLORS[i], title: macro ? (macro.title || abbr) : abbr };
-  });
-  if (restCount > 0) {
-    const pct = Math.round((restCount / total) * 100);
-    segments.push({ abbr: null, count: restCount, pct, macro: null, color: COLORS[5], title: 'Other' });
+  if (!isTyping() && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    e.preventDefault();
+    moveSelection(e.key === 'ArrowDown' ? 1 : -1);
   }
-
-  // Wrapper card
-  const wrapper = document.createElement('div');
-  wrapper.className = 'donut-wrapper';
-
-  // SVG
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 200 200');
-  svg.setAttribute('width', '200');
-  svg.setAttribute('height', '200');
-  svg.classList.add('donut-svg');
-
-  // Center text — 2 lines only
-  const mkText = (x, y, cls) => {
-    const t = document.createElementNS(NS, 'text');
-    t.setAttribute('x', String(x));
-    t.setAttribute('y', String(y));
-    t.setAttribute('text-anchor', 'middle');
-    t.setAttribute('dominant-baseline', 'middle');
-    t.classList.add(cls);
-    return t;
-  };
-  const centerMid = mkText(100, 93,  'donut-center-mid');
-  const centerBot = mkText(100, 113, 'donut-center-bot');
-
-  const resetCenter = () => {
-    centerMid.style.fill     = '';
-    centerMid.style.fontSize = '';
-    centerMid.textContent    = total.toLocaleString();
-    centerBot.style.fill     = '';
-    centerBot.style.opacity  = '';
-    centerBot.style.fontSize = '';
-    centerBot.textContent    = 'expansions';
-  };
-  resetCenter();
-
-  const setHoverCenter = (seg) => {
-    const prefix    = data.prefix || '/';
-    const abbrLabel = seg.abbr ? prefix + seg.abbr : 'Other';
-    centerMid.style.fill     = seg.color;
-    centerMid.style.fontSize = '20px';
-    centerMid.textContent    = abbrLabel;
-    centerBot.style.fill     = seg.color;
-    centerBot.style.opacity  = '0.6';
-    centerBot.style.fontSize = '13px';
-    centerBot.textContent    = seg.pct + '%';
-  };
-
-  // Build arc paths (normal + hover with OR+4)
-  const arcPaths = [];
-  let startAngle = 0;
-  const numSegs = segments.length;
-
-  segments.forEach((seg, i) => {
-    const sliceDeg = (seg.count / total) * 360;
-    const halfGap  = numSegs > 1 ? GAP / 2 : 0;
-    const arcStart = startAngle + halfGap;
-    const arcEnd   = startAngle + sliceDeg - halfGap;
-    startAngle += sliceDeg;
-    arcPaths.push({
-      normalD: describeArc(CX, CY, OR,     IR, arcStart, arcEnd),
-      hoverD:  describeArc(CX, CY, OR + 4, IR, arcStart, arcEnd),
-    });
-  });
-
-  // Build path elements
-  const pathEls = [];
-  segments.forEach((seg, i) => {
-    const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', arcPaths[i].normalD);
-    path.setAttribute('fill', seg.color);
-    path.style.animation = `donutIn 420ms cubic-bezier(.34,1.26,.64,1) ${i * 70}ms both`;
-    if (seg.macro) path.style.cursor = 'pointer';
-
-    path.addEventListener('mouseenter', () => {
-      path.setAttribute('d', arcPaths[i].hoverD);
-      setHoverCenter(seg);
-    });
-    path.addEventListener('mouseleave', () => {
-      path.setAttribute('d', arcPaths[i].normalD);
-      resetCenter();
-    });
-
-    if (seg.macro) {
-      path.addEventListener('click', () => {
-        const idx = snippets.findIndex((s) => s.abbr === seg.abbr);
-        if (idx !== -1) selectMacro(idx);
-      });
-    }
-
-    svg.appendChild(path);
-    pathEls.push(path);
-  });
-
-  svg.appendChild(centerMid);
-  svg.appendChild(centerBot);
-
-  // Legend
-  const legend = document.createElement('div');
-  legend.className = 'donut-legend';
-
-  segments.forEach((seg, i) => {
-    const item = document.createElement('div');
-    item.className = 'donut-legend-item' + (seg.macro ? ' donut-legend-item--clickable' : '');
-    item.innerHTML = `
-      <span class="donut-legend-dot" style="background:${seg.color}"></span>
-      <span class="donut-legend-title">${escHtml(seg.title)}</span>
-      <span class="donut-legend-count">${seg.count} uses</span>
-      <span class="donut-legend-pct" style="color:${seg.color}">${seg.pct}%</span>
-    `;
-
-    item.addEventListener('mouseenter', () => {
-      pathEls[i].setAttribute('d', arcPaths[i].hoverD);
-      setHoverCenter(seg);
-      if (seg.macro && seg.macro.content) {
-        const preview = stripHtml(seg.macro.content).replace(/\n/g, ' ').trim();
-        const text = preview.length > 80 ? preview.slice(0, 80) + '\u2026' : preview;
-        if (text) {
-          tooltip.textContent = text;
-          tooltip.dataset.fixed = '1';
-          const rect = item.getBoundingClientRect();
-          tooltip.style.top       = (rect.top - 12) + 'px';
-          tooltip.style.left      = (rect.left + rect.width / 2) + 'px';
-          tooltip.style.transform = 'translate(-50%, -100%)';
-          tooltip.classList.add('visible');
-        }
-      }
-    });
-    item.addEventListener('mouseleave', () => {
-      pathEls[i].setAttribute('d', arcPaths[i].normalD);
-      resetCenter();
-      tooltip.classList.remove('visible');
-      delete tooltip.dataset.fixed;
-      tooltip.style.transform = '';
-    });
-    if (seg.macro) {
-      item.addEventListener('click', () => {
-        const idx = snippets.findIndex((s) => s.abbr === seg.abbr);
-        if (idx !== -1) selectMacro(idx);
-      });
-    }
-    legend.appendChild(item);
-  });
-
-  const chartArea = document.createElement('div');
-  chartArea.className = 'donut-chart-area';
-  chartArea.appendChild(svg);
-  wrapper.appendChild(chartArea);
-  wrapper.appendChild(legend);
-  container.appendChild(wrapper);
-
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-function escHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
-}
-
-function stripHtml(html) {
-  const d = document.createElement('div');
-  d.innerHTML = html;
-  return d.textContent || d.innerText || '';
-}
+});
 
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 (async () => {
-  // Apply platform class before first paint to avoid layout shift
-  if (window.macroAPI.platform !== 'darwin') {
-    document.body.classList.add('windows');
-  }
-
-  loadTheme();
-  data = await window.macroAPI.load();
-  updatePrefixDisplay();
-  renderList();
-
-  // Home screen — render after data is loaded
-  renderHomeScreen();
-
-  // Settings: name input
-  const nameInput = document.getElementById('settings-name-input');
-  if (nameInput) {
-    nameInput.value = localStorage.getItem('userName') || '';
-    nameInput.addEventListener('input', () => {
-      const val = nameInput.value.trim();
-      if (val) localStorage.setItem('userName', val);
-      else localStorage.removeItem('userName');
-    });
-  }
-
-  // Version from main process
-  try {
-    const v = await window.macroAPI.version();
-    settingsVersion.textContent = `Macro Manager v${v}`;
-  } catch { /* fallback already set in HTML */ }
-
-  // Auto-update notifications
-  function showUpdateBanner(message, showRestart) {
-    // Remove any existing banner first
-    document.querySelector('.update-banner')?.remove();
-
-    const banner = document.createElement('div');
-    banner.className = 'update-banner';
-    banner.innerHTML = `
-      <span>${message}</span>
-      ${showRestart ? '<button id="restart-btn">Restart Now</button>' : ''}
-    `;
-    document.body.appendChild(banner);
-
-    if (showRestart) {
-      document.getElementById('restart-btn').addEventListener('click', () => {
-        window.macroAPI.installUpdate();
-      });
-    }
-  }
-
-  window.macroAPI.onUpdateAvailable((version) => {
-    showUpdateBanner(`Update v${version} downloading...`, false);
+  const s = await api.getState();
+  Object.assign(state, {
+    macros: s.macros,
+    usage: s.usage,
+    stats: s.stats,
+    today: s.today,
+    settings: s.settings,
+    version: s.version,
+    platform: s.platform,
+    dataPath: s.dataPath,
+    accessibility: s.accessibility,
+    update: s.update,
+    builtIns: s.builtIns,
+    tokens: s.tokens,
   });
+  document.body.classList.add(IS_MAC() ? 'mac' : 'win');
+  el.searchKbd.textContent = IS_MAC() ? '⌘F' : 'Ctrl+F';
+  render();
 
-  window.macroAPI.onUpdateDownloaded((version) => {
-    showUpdateBanner(`v${version} ready \u2014 restart to update`, true);
+  api.onStatsChanged(({ usage, stats }) => {
+    state.usage = usage;
+    state.stats = stats;
+    state.today = dayKey(new Date());
+    if (state.view === 'overview') renderView();
+    if (state.sort === 'usage') renderList();
+  });
+  api.onMacrosChanged((macros) => {
+    // Ignore echoes of our own saves while typing.
+    if (saveTimer) return;
+    state.macros = macros;
+    renderList();
+    if (state.view !== 'editor') renderView();
+  });
+  api.onSettingsChanged((settings) => {
+    state.settings = settings;
+    renderFooter();
+    if (state.view === 'settings' || state.view === 'overview') renderView();
+  });
+  api.onUpdateState((u) => {
+    state.update = u;
+    renderFooter();
+    if (state.view === 'settings') renderView();
+  });
+  api.onAccessibility((granted) => {
+    if (granted === state.accessibility) return;
+    state.accessibility = granted;
+    renderFooter();
+    if (state.view !== 'editor') renderView();
+  });
+  api.onNavigate((page) => {
+    if (page === 'new') newMacro();
+    else if (page.startsWith('macro:')) go('editor', Number(page.slice(6)));
+    else go(page);
   });
 })();

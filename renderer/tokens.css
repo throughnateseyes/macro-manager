@@ -1,0 +1,121 @@
+/* Design tokens shared by the main window and the Quick Insert palette.
+   Light/dark follow the OS (or the Appearance setting, which Electron feeds
+   through prefers-color-scheme). */
+:root {
+  color-scheme: light dark;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+
+  --bg:          #ffffff;
+  --sidebar:     #f5f5f7;
+  --surface:     #f5f5f7;
+  --surface-2:   #ebebef;
+  --raised:      #ffffff;
+  --hover:       rgba(0, 0, 0, 0.045);
+  --press:       rgba(0, 0, 0, 0.08);
+  --selected:    rgba(0, 0, 0, 0.07);
+  --border:      rgba(0, 0, 0, 0.09);
+  --border-2:    rgba(0, 0, 0, 0.14);
+  --text:        #1d1d1f;
+  --text-2:      #6e6e73;
+  --text-3:      #a1a1a6;
+  --accent:      #007aff;
+  --accent-text: #0066d6;
+  --accent-soft: rgba(0, 122, 255, 0.1);
+  --on-accent:   #ffffff;
+  --green:       #28a745;
+  --green-soft:  rgba(52, 199, 89, 0.14);
+  --orange:      #c76a00;
+  --orange-soft: rgba(255, 149, 0, 0.14);
+  --red:         #e5372b;
+  --red-soft:    rgba(255, 59, 48, 0.1);
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-lg:   0 12px 40px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+  --focus:       0 0 0 3px rgba(0, 122, 255, 0.28);
+
+  --radius-sm: 6px;
+  --radius:    8px;
+  --radius-lg: 12px;
+  --ease:      cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:          #1c1c1e;
+    --sidebar:     #232325;
+    --surface:     #2c2c2e;
+    --surface-2:   #3a3a3c;
+    --raised:      #2c2c2e;
+    --hover:       rgba(255, 255, 255, 0.06);
+    --press:       rgba(255, 255, 255, 0.1);
+    --selected:    rgba(255, 255, 255, 0.09);
+    --border:      rgba(255, 255, 255, 0.08);
+    --border-2:    rgba(255, 255, 255, 0.14);
+    --text:        #f5f5f7;
+    --text-2:      #a1a1a6;
+    --text-3:      #6e6e73;
+    --accent:      #0a84ff;
+    --accent-text: #4aa3ff;
+    --accent-soft: rgba(10, 132, 255, 0.18);
+    --green:       #30d158;
+    --green-soft:  rgba(48, 209, 88, 0.16);
+    --orange:      #ff9f0a;
+    --orange-soft: rgba(255, 159, 10, 0.16);
+    --red:         #ff453a;
+    --red-soft:    rgba(255, 69, 58, 0.16);
+    --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-lg:   0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+    --focus:       0 0 0 3px rgba(10, 132, 255, 0.4);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+button { font: inherit; color: inherit; background: none; border: none; cursor: default; }
+input, textarea { font: inherit; color: inherit; -webkit-user-select: text; user-select: text; }
+:focus { outline: none; }
+:focus-visible { box-shadow: var(--focus); border-radius: var(--radius-sm); }
+
+.icon {
+  width: 16px; height: 16px; flex-shrink: 0;
+  fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+}
+
+kbd {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+
+.chip {
+  display: inline-flex; align-items: center;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-2);
+  border: 0.5px solid var(--border);
+  white-space: nowrap;
+}
+
+.hidden { display: none !important; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }

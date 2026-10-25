@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "renderer-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["dev/serve.py"],
+      "port": 5180
+    }
+  ]
+}

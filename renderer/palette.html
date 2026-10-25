@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="palette.css" />
+  <title>Quick Insert</title>
+</head>
+<body>
+  <div class="palette">
+    <div id="tray-head" class="tray-head hidden">
+      <div class="today"><strong id="t-today">0</strong><span>today</span></div>
+      <div class="today"><strong id="t-streak">0</strong><span>day streak</span></div>
+      <div class="today"><strong id="t-life">0</strong><span>all time</span></div>
+      <button id="t-open" class="open-btn">Open app</button>
+    </div>
+    <label class="field">
+      <svg class="icon" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.75"/><path d="M10.5 10.5 14 14"/></svg>
+      <input id="q" type="text" placeholder="Search macros" autocomplete="off" spellcheck="false" />
+    </label>
+    <div id="results" class="results" role="listbox"></div>
+    <footer class="foot">
+      <span><kbd>↵</kbd> <span id="enter-label">Insert</span></span>
+      <span id="copy-hint"><kbd id="k-copy">⌘C</kbd> Copy</span>
+      <span><kbd id="k-edit">⌘E</kbd> Edit</span>
+      <span class="spacer"></span>
+      <span><kbd>esc</kbd> Close</span>
+    </footer>
+  </div>
+  <script src="palette.js"></script>
+</body>
+</html>

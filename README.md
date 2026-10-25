@@ -1,129 +1,108 @@
-# Macro Manager
+<p align="center">
+  <img src="build/icon.png" width="96" alt="Macro Manager icon" />
+</p>
 
-Type a short abbreviation anywhere and it expands into your full saved text — works in every app, system-wide, on Mac and Windows.
+<h1 align="center">Macro Manager</h1>
 
----
+<p align="center">
+  Type a short abbreviation anywhere and it expands into your saved text, in every app, on Mac and Windows.<br/>
+  Built for and used daily by my team at Brick + Timber.
+</p>
 
-## Installing on Mac
+<p align="center">
+  <a href="https://github.com/throughnateseyes/macro-manager/releases/latest/download/Macro-Manager-Windows-Setup.exe"><b>Download for Windows</b></a> ·
+  <a href="https://github.com/throughnateseyes/macro-manager/releases/latest/download/Macro-Manager-Mac-arm64.dmg"><b>Mac (Apple Silicon)</b></a> ·
+  <a href="https://github.com/throughnateseyes/macro-manager/releases/latest/download/Macro-Manager-Mac-x64.dmg"><b>Mac (Intel)</b></a>
+</p>
 
-1. Go to the [Releases page](https://github.com/throughnateseyes/macro-manager/releases) and download the right file for your Mac:
-   - **Apple Silicon (M1/M2/M3/M4):** `Macro Manager-1.0.0-arm64.dmg`
-   - **Intel Mac:** `Macro Manager-1.0.0.dmg`
+![Overview](docs/screenshots/overview-light.png)
 
-   Not sure which you have? Click the Apple menu → **About This Mac**. Look for "Apple M" (Silicon) or "Intel" under Chip or Processor.
+## What it does
 
-2. Open the downloaded `.dmg` file and drag **Macro Manager** into your **Applications** folder.
+Type `/sig` then Space, and it becomes your full email signature. Type `/tour` and a tour confirmation appears with the date already filled in. It works in Outlook, Teams, Chrome, Slack, Excel: anywhere you can type.
 
-3. Launch the app from Applications. If macOS says it can't be opened:
-   - Go to **System Settings → Privacy & Security**
-   - Scroll down and click **Open Anyway**
-   - This only happens the first time
-
-The app will appear in your **menu bar** (top-right of your screen) after launch.
-
----
-
-## Installing on Windows
-
-1. Go to the [Releases page](https://github.com/throughnateseyes/macro-manager/releases) and download the `.exe` installer.
-
-2. Double-click it and follow the prompts. It installs silently with one click.
-
-3. The app launches automatically and lives in the **system tray** (bottom-right of your screen, near the clock).
-
-> **If macros aren't expanding:** right-click the `.exe` and choose **Run as administrator**. Windows requires this for the global keyboard listener.
-
----
-
-## Updates
-
-The app updates itself automatically. When a new version is ready, you'll see a small prompt asking if you'd like to restart — click **Restart Now** and you're on the latest version. No downloading or reinstalling needed.
-
----
-
-## How to use
-
-1. Open Macro Manager from the menu bar or system tray
-2. Click **+ New Macro**, give it a title and a short abbreviation, then add your content and save
-3. Go to any app — type `/` followed by your abbreviation, then press **Space** or **Tab**
-4. The abbreviation expands into your full saved text instantly
-
-**Example:** save an abbreviation `sig` with your email signature, then type `/sig` + Space anywhere to paste it.
-
-The default trigger prefix is `/`. You can change it to `;`, `.`, or any symbol you prefer from the bottom-left of the app.
-
----
-
-## Built-in shortcuts
-
-These work without creating anything:
-
-| Type this | Gets replaced with |
+| | |
 |---|---|
-| `/ts` | Full timestamp — e.g. `April 11, 2025 2:30 PM` |
-| `/date` | Short date — `04/11/2025` |
-| `/isodate` | ISO date — `2025-04-11` |
-| `/time` | Current time — `2:30 PM` |
-| `/time24` | 24-hour time — `14:30:00` |
-| `/day` | Day and date — `Friday, April 11` |
-| `/unix` | Unix timestamp |
+| ![Editor](docs/screenshots/editor-light.png) | ![Quick Insert](docs/screenshots/quick-insert-dark.png) |
+| **Notion-style editor** with autosave, folders, and live preview | **Quick Insert**: search every macro from any app and paste it |
+| ![Settings on Windows](docs/screenshots/settings-windows.png) | ![Tray flyout](docs/screenshots/tray-flyout-windows.png) |
+| **Native on Windows** with theme-matched title bar controls | **Tray flyout**: today's count, streak, and one-click copy |
 
----
+### Features
+
+- **System-wide expansion**: `prefix + abbreviation`, then Space, Tab, or Enter
+- **Smart placeholders**: `{cursor}` `{clipboard}` `{date}` `{date+7}` `{time}` `{day}` `{weekday}` and more
+- **Quick Insert**: `⌘⇧Space` on Mac, `Ctrl+Alt+Space` on Windows
+- **Stats that make it a habit**: lifetime expansions, day streaks, milestones, an activity heatmap, and typing time saved
+- **Pinned macros** in the tray or menu bar for one-click copy
+- **Folders, search, and sorting**, all keyboard-driven
+- **Safe by default**: atomic saves, 14 days of daily backups, and recovery from a corrupt file
+- **Updates itself** on Windows. Mac shows a one-click download.
+- **Light, dark, or system** theme, with native vibrancy on macOS
+
+### Built-in date and time
+
+| Type | Gets |
+|---|---|
+| `/ts` | October 24, 2026 2:30 PM |
+| `/date` | 10/24/2026 |
+| `/isodate` | 2026-10-24 |
+| `/time` | 2:30 PM |
+| `/time24` | 14:30:00 |
+| `/day` | Saturday, October 24 |
+| `/unix` | 1792880000 |
+
+## Installing
+
+### Windows
+
+1. Download **[Macro-Manager-Windows-Setup.exe](https://github.com/throughnateseyes/macro-manager/releases/latest/download/Macro-Manager-Windows-Setup.exe)**.
+2. If Windows says **"Windows protected your PC"**, click **More info → Run anyway**. The app isn't code-signed yet, so this appears once.
+3. Follow the installer. Macro Manager starts in the **system tray** near the clock. Click the icon for quick access; right-click it for the menu.
+
+Updates download in the background. When one is ready you'll see **Restart & Update**.
+
+### Mac
+
+1. Download the [Apple Silicon](https://github.com/throughnateseyes/macro-manager/releases/latest/download/Macro-Manager-Mac-arm64.dmg) or [Intel](https://github.com/throughnateseyes/macro-manager/releases/latest/download/Macro-Manager-Mac-x64.dmg) build. Not sure which you have? Apple menu → **About This Mac** → look for "Apple M…" or "Intel".
+2. Open the DMG and drag **Macro Manager** into **Applications**.
+3. On first launch, macOS will say it can't verify the developer. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**.
+4. Allow **Accessibility** access when the app asks (**System Settings → Privacy & Security → Accessibility → Macro Manager**). macOS requires this before any app can type into other apps.
+
+When an update is available, the app shows a **Download** button.
 
 ## Your data
 
-Macros are saved locally on your machine and are never sent anywhere.
+Everything stays on your computer. Nothing is sent anywhere.
 
-| Platform | Location |
+| | Location |
 |---|---|
-| Mac | `~/Library/Application Support/macro-manager/macros.json` |
-| Windows | `%APPDATA%\macro-manager\macros.json` |
+| Mac | `~/Library/Application Support/macro-manager/` |
+| Windows | `%APPDATA%\macro-manager\` |
 
-Updates do not affect your saved macros.
+`macros.json` holds your macros, `stats.json` your history, and `backups/` daily copies. **Settings → Export** makes a file you can import on another computer.
 
----
+## Development
 
----
-
-## Developer notes
-
-### Building
-
-**Mac** (run on a Mac):
-```
-GH_TOKEN=your_token npm run build:mac -- --publish always
+```bash
+npm install
+npm start               # run the app (uses your real macros)
+npm run start:clean     # run with a throwaway data folder
+npm run preview         # UI in a browser with sample data → http://127.0.0.1:5180/dev/preview.html
+npm test                # unit tests (keyboard buffer, placeholders, storage)
+npm run build:all       # build Mac + Windows installers into release/
 ```
 
-**Windows** (run on a Windows PC):
 ```
-npm run build:win
+main.js            Electron main: windows, tray, shortcuts, updates, IPC
+preload.js         The only bridge between UI and system (contextIsolation, sandbox)
+lib/expander.js    Global keyboard hook → backspace → paste → restore clipboard
+lib/keys.js        Keycode → character buffer (Shift-aware, unit-tested)
+lib/placeholders.js  {date} / {cursor} / built-ins
+lib/store.js       Atomic JSON storage, daily backups, stats history
+renderer/          Main window + Quick Insert palette (vanilla JS, no framework)
 ```
 
-Mac output goes to `/tmp/macro-manager-dist/` — intentionally outside `~/Documents` to avoid iCloud Drive re-adding `com.apple.FinderInfo` xattrs between the `afterPack` hook and `codesign`. Do not change the output path without accounting for this.
+Releasing is covered in **[docs/RELEASING.md](docs/RELEASING.md)**, and the v1 → v2 review in **[docs/AUDIT.md](docs/AUDIT.md)**.
 
----
-
-### Releasing a new version
-
-1. Bump the version in `package.json`
-2. Build on Mac and Windows
-3. Create a new GitHub Release tagged `v1.x.x`
-4. Upload all files from `/tmp/macro-manager-dist/` (Mac) and the Windows `dist/` output:
-   - `Macro Manager-x.x.x.dmg` + blockmap
-   - `Macro Manager-x.x.x-arm64.dmg` + blockmap
-   - `Macro Manager-x.x.x-mac.zip` + blockmap
-   - `Macro Manager-x.x.x-arm64-mac.zip` + blockmap
-   - `Macro Manager Setup x.x.x.exe` + blockmap
-   - `latest-mac.yml` and `latest.yml` (auto-generated — required for auto-update)
-
-Existing users will be prompted to update automatically on next app launch.
-
----
-
-### Notes
-
-- **Notarization is not yet set up.** Mac users will see a Gatekeeper warning on first launch ("Apple could not verify..."). They can bypass it via System Settings → Privacy & Security → Open Anyway. To eliminate this long-term, configure notarization with `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD` env vars.
-
-- **`afterPack.js`** runs before codesign and strips extended attributes (`xattr -cr`) and resource fork sidecar files (`dot_clean -m`) from the app bundle. Do not delete it — the build will fail to sign without it.
-
-- **Auto-update** uses `electron-updater` and only activates in packaged builds (`app.isPackaged`). It silently checks for updates 5 seconds after launch and prompts the user when one is downloaded.
+Built with Electron and [uiohook-napi](https://github.com/SnosMe/uiohook-napi). MIT licensed.

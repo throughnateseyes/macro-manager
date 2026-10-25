@@ -1,3 +1,7 @@
 node_modules/
 dist/
 release/
+.dev-data/
+.DS_Store
+*.tmp
+.claude/settings.local.json

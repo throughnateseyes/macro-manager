@@ -1,112 +1,114 @@
 name: Build & Release
 
+# Push a tag like v2.1.0 (npm run release:patch does this for you) and this
+# workflow tests the code, builds the Mac and Windows installers, launches each
+# one to make sure it starts, uploads them to a GitHub Release, and publishes
+# it. Installed copies of the app check that release and update themselves.
+#
+# "Run workflow" from the Actions tab builds installers without releasing —
+# handy for trying a build before tagging it.
+
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release tag to upload .exe to (e.g. v1.0.4)'
-        required: false
-        default: 'v1.0.4'
 
 permissions:
   contents: write
 
+env:
+  TAG: ${{ github.ref_name }}
+
 jobs:
-  # ── Mac DMG build — only on tag push (already uploaded for v1.0.4) ──────────
-  build-mac:
-    if: github.event_name == 'push'
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # node-gyp requires distutils; Python 3.12 removed it — pin to 3.11
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Import Mac signing certificate
-        env:
-          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-        run: |
-          if [ -n "$CERTIFICATE_P12" ]; then
-            echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
-            security create-keychain -p actions build.keychain
-            security default-keychain -s build.keychain
-            security unlock-keychain -p actions build.keychain
-            security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-            security set-key-partition-list -S apple-tool:,apple: -s -k actions build.keychain
-            rm certificate.p12
-          fi
-
-      - name: Build & Publish Mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npx electron-builder --mac --publish always
-
-      - name: Upload Mac artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-artifacts
-          path: release/*.dmg
-
-  # ── Windows NSIS build — runs on both tag push and workflow_dispatch ─────────
-  build-win:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # node-gyp requires distutils; Python 3.12 removed it — pin to 3.11
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build & Publish Windows
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --publish always
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: win-artifacts
-          path: release/*.exe
-
-  # ── Upload .exe to existing release (workflow_dispatch only) ─────────────────
-  release-upload:
-    needs: [build-win]
-    if: github.event_name == 'workflow_dispatch'
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: win-artifacts
-          path: dist/
-
-      - name: Upload .exe to existing release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - name: Tag matches package.json version
+        if: github.event_name == 'push'
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          gh release upload "$VERSION" dist/*.exe \
-            --repo ${{ github.repository }} \
-            --clobber
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::Tag $TAG doesn't match package.json version $PKG"
+            exit 1
+          fi
+
+  # One draft release up front, so the Mac and Windows jobs don't race to
+  # create two.
+  draft:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --draft --title "Macro Manager ${TAG#v}" --generate-notes
+
+  build:
+    needs: [test, draft]
+    if: ${{ !cancelled() && needs.test.result == 'success' && (needs.draft.result == 'success' || needs.draft.result == 'skipped') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: --mac
+          - os: windows-latest
+            platform: --win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+
+      - name: Build installers
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder ${{ matrix.platform }} --publish never
+
+      # Launch the packaged app for real; nothing is uploaded if it can't start.
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env: { MACRO_MANAGER_DATA: '${{ runner.temp }}/smoke' }
+        run: '"release/win-unpacked/Macro Manager.exe" --smoke-test'
+      - name: Smoke test (Mac)
+        if: runner.os == 'macOS'
+        env: { MACRO_MANAGER_DATA: '${{ runner.temp }}/smoke' }
+        run: '"release/mac-arm64/Macro Manager.app/Contents/MacOS/Macro Manager" --smoke-test'
+
+      - name: Upload to release ${{ env.TAG }}
+        if: github.event_name == 'push'
+        shell: bash
+        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: |
+          shopt -s nullglob
+          gh release upload "$TAG" --clobber release/*.exe release/*.dmg release/*.zip release/*.blockmap release/latest*.yml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ runner.os }}
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.exe
+            release/*.yml
+          if-no-files-found: error
+
+  # Only after both installers are uploaded does the release go live, so the
+  # auto-updater never sees a half-finished release.
+  publish:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: gh release edit "$TAG" --draft=false --latest
