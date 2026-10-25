@@ -37,7 +37,8 @@ let settings = store.loadSettings();
 // Adding to the total (lib/report.js). Only from a packaged app, so development
 // and the CI smoke test never count; MM_STATS_URL points a dev build at a local
 // portfolio server to test it. Nothing is sent before the notice is answered.
-const STATS_URL = process.env.MM_STATS_URL || 'https://throughnateseyes.com';
+// www, because the bare domain answers with a redirect.
+const STATS_URL = process.env.MM_STATS_URL || 'https://www.throughnateseyes.com';
 const reporter = createReporter({
   store,
   version: app.getVersion(),
