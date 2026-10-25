@@ -37,7 +37,16 @@ window.MM_DEV = true; // shows the Overview direction chooser
   }
   // ?busy — a heavy day so far, to see the sky cloud over.
   if (params.has('busy')) days[dayKey(new Date())] = { total: 22, macros: { tour: 9, sig: 6, fu: 4, mr: 3 } };
-  const stats = { lifetime: params.has('empty') ? 0 : 1457, charsSaved: params.has('empty') ? 0 : 118400, since: '2026-04-11', days };
+  // Newest first. `sig` is pinned, so the palette leaves it out of Recent.
+  const ago = (mins) => Date.now() - mins * 60000;
+  const recent = params.has('empty') ? [] : [
+    { abbr: 'fu', at: ago(2) },
+    { abbr: 'sig', at: ago(14) },
+    { abbr: 'mr', at: ago(65) },
+    { abbr: 'addr', at: ago(26 * 60) },
+    { abbr: 'zoom', at: ago(4 * 24 * 60) },
+  ];
+  const stats = { lifetime: params.has('empty') ? 0 : 1457, charsSaved: params.has('empty') ? 0 : 118400, since: '2026-04-11', days, recent };
 
   const BUILT_INS = [
     { abbr: 'ts', title: 'Full Timestamp', desc: 'Month D, YYYY H:MM AM/PM' },

@@ -59,3 +59,49 @@ test('import skips abbreviations that already exist', () => {
   assert.strictEqual(r.added, 1);
   assert.strictEqual(r.merged.snippets.length, 2);
 });
+
+test('recent uses are newest first, deduped, and capped', () => {
+  const dir = tmp();
+  const store = createStore(dir);
+  store.saveMacros({ prefix: '/', snippets: [{ title: 'S', abbr: 'sig', content: 'x' }] });
+  store.recordExpansion({ abbr: 'sig', chars: 1 });
+  store.recordExpansion({ abbr: 'fu', chars: 1 });
+  store.recordExpansion({ abbr: null, chars: 1 }); // built-ins aren't recents
+  store.recordExpansion({ abbr: 'sig', chars: 1 });
+  const recent = store.loadStats().recent;
+  assert.deepStrictEqual(recent.map((r) => r.abbr), ['sig', 'fu']);
+  assert.ok(recent[0].at >= recent[1].at && Number.isFinite(recent[0].at));
+  for (let i = 0; i < 30; i++) store.recordExpansion({ abbr: `m${i}`, chars: 1 });
+  const capped = store.loadStats().recent;
+  assert.strictEqual(capped.length, 20);
+  assert.strictEqual(capped[0].abbr, 'm29');
+});
+
+test('recents keep the stats and usage files readable by older versions', () => {
+  const dir = tmp();
+  const store = createStore(dir);
+  store.recordExpansion({ abbr: 'sig', chars: 1 });
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(store.paths.usage, 'utf-8')), { sig: 1 });
+  const onDisk = JSON.parse(fs.readFileSync(store.paths.stats, 'utf-8'));
+  assert.strictEqual(onDisk.lifetime, 1);
+  assert.strictEqual(onDisk.days[store.localDay()].macros.sig, 1);
+  // A stats.json from before recents existed just starts an empty list.
+  delete onDisk.recent;
+  fs.writeFileSync(store.paths.stats, JSON.stringify(onDisk));
+  store.recordExpansion({ abbr: 'fu', chars: 1 });
+  assert.deepStrictEqual(store.loadStats().recent.map((r) => r.abbr), ['fu']);
+});
+
+test('renaming moves a recent and deleting forgets it', () => {
+  const dir = tmp();
+  const store = createStore(dir);
+  store.recordExpansion({ abbr: 'sig', chars: 1 });
+  store.recordExpansion({ abbr: 'fu', chars: 1 });
+  store.recordExpansion({ abbr: 'addr', chars: 1 });
+  store.renameUsage('fu', 'followup');
+  assert.deepStrictEqual(store.loadStats().recent.map((r) => r.abbr), ['addr', 'followup', 'sig']);
+  store.renameUsage('sig', 'addr'); // merging into a newer recent keeps one entry
+  assert.deepStrictEqual(store.loadStats().recent.map((r) => r.abbr), ['addr', 'followup']);
+  store.deleteUsage('followup');
+  assert.deepStrictEqual(store.loadStats().recent.map((r) => r.abbr), ['addr']);
+});
