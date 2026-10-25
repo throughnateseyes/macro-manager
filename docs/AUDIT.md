@@ -111,10 +111,24 @@ Things noticed while building 2.x for people who answer the same questions all d
 - **Macros contain personal details** (addresses, phone numbers, signatures). Keeping everything on the device is a feature worth stating plainly, especially once it's open source.
 - **People switch from TextExpander.** An importer for its CSV export would make switching a one-click move.
 
-## 10. Still open
+## 10. Adding to the total (2.2)
+
+Until 2.2 every count was per-computer, so there was no way to say how much typing Macro Manager has saved everyone. 2.2 adds one setting, **Settings → Your data → Add to the total**, on by default.
+
+| What | How |
+|---|---|
+| What's sent | `{ id, token, seq, expansions, chars, v }`: a random install ID, a server-issued token, a sequence number, how much `stats.json` grew since the last accepted report, and the app version. The first report also carries everything from before 2.2 (`backfill`). No macro text, abbreviations, days, platform or anything typed. The planned `topAbbreviations` was dropped: an abbreviation name can be personal. |
+| Consent | On by default, but nothing is sent until the sidebar notice is answered (**OK** or **Turn Off**). Someone who only ever runs it from the tray never sends anything. |
+| Offline | No queue. `report.json` keeps how much the server already has, so the next report is just a bigger difference. A batch is resent unchanged, with the same sequence number, until the server answers, and the server drops a sequence number it has seen, so a lost reply can't count twice. |
+| Where it goes | `POST https://www.throughnateseyes.com/api/macro-manager/stats` (code in the portfolio repo, `lib/macroStats.ts`). Upstash Redis adds it up per install and overall. |
+| Abuse | The app is open source, so a key inside it would be public. The secret stays on the server instead: an install registers once and gets a token signed with it, registration is limited per IP, each report is capped (2,000 expansions, 5,000 characters each), and each install may report 6 times an hour. Every install keeps its own total on the server, so one bad actor can be subtracted. A larger backlog goes out in pieces a few minutes apart. |
+| Turning it off | Stops sending at once. Turning it back on starts from that moment, so use while it was off is never sent. |
+| Development | Only a packaged app reports. `npm start` and the CI smoke test never do; `MM_STATS_URL` points a dev build at a local server to test it. |
+
+## 11. Still open
 
 - **Apple Developer ID**: needed for Mac auto-updates and to remove the first-launch prompt. The Accessibility half of this is solved: since 2.0.2, Mac builds are signed with one self-signed certificate, so macOS keeps the permission across updates (ad-hoc builds were identified by their hash and lost it every time).
 - **Windows code signing**: removes the SmartScreen "unknown publisher" prompt. Azure Trusted Signing costs about $10/mo.
-- **Team stats**: needs a small backend. Options are in [RELEASING.md](RELEASING.md#team-stats-next).
+- **Team stats**: the backend now exists (section 10), but it only knows everyone's total. Per-team totals need a team code. See [RELEASING.md](RELEASING.md#team-stats-next).
 - **Non-US keyboard layouts**: abbreviations assume US key positions for symbols.
 - **Fill-in fields** (prompt for a name when expanding): a common request in paid expanders.

@@ -11,6 +11,7 @@ const state = {
   version: '',
   platform: 'darwin',
   dataPath: '',
+  statsUrl: '',
   accessibility: true,
   update: { status: 'idle' },
   builtIns: [],
@@ -451,6 +452,25 @@ function renderFooter() {
         <button class="btn small primary">Open System Settings</button>
       </div>`);
     b.querySelector('button').addEventListener('click', () => api.requestAccessibility());
+    el.footer.append(b);
+  }
+
+  // Shown once, and nothing is sent until it's answered either way.
+  if (state.settings.shareUsage && !state.settings.usageNoticeSeen) {
+    const b = h(`
+      <div class="banner">
+        <strong>Adding to the total</strong>
+        <p>Once an hour, Macro Manager adds how many macros you expanded and the characters they saved to a total across everyone using it. Never your macros or anything you type.</p>
+        <div class="banner-actions">
+          <button class="btn small primary" data-ok>OK</button>
+          <button class="btn small" data-off>Turn Off</button>
+        </div>
+      </div>`);
+    b.querySelector('[data-ok]').addEventListener('click', () => setSettings({ usageNoticeSeen: true }));
+    b.querySelector('[data-off]').addEventListener('click', () => {
+      setSettings({ usageNoticeSeen: true, shareUsage: false });
+      toast('Turned off. Settings can turn it back on.');
+    });
     el.footer.append(b);
   }
 
@@ -977,6 +997,14 @@ function renderSettings() {
       ],
     }),
     groupRow({
+      name: 'Add to the total',
+      sub: 'Once an hour, sends how many macros you expanded and the characters they saved, with a random ID for this computer. Never your macros, abbreviations, or anything you type.',
+      controls: [
+        button('See It', () => window.open(state.statsUrl), 'small'),
+        switchEl(st.shareUsage, (v) => setSettings({ shareUsage: v, usageNoticeSeen: true })),
+      ],
+    }),
+    groupRow({
       name: 'Stored on this computer',
       sub: `<span class="path">${esc(state.dataPath)}</span><br>A backup is saved each day and kept for two weeks.`,
       controls: [button(IS_MAC() ? 'Show in Finder' : 'Show in Explorer', () => api.openDataFolder(), 'small')],
@@ -1115,6 +1143,7 @@ document.addEventListener('keydown', (e) => {
     version: s.version,
     platform: s.platform,
     dataPath: s.dataPath,
+    statsUrl: s.statsUrl,
     accessibility: s.accessibility,
     update: s.update,
     builtIns: s.builtIns,

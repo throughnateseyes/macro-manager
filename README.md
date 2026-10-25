@@ -74,14 +74,21 @@ When an update is available, the app shows a **Download** button.
 
 ## Your data
 
-Everything stays on your computer. Nothing is sent anywhere.
+Your macros stay on your computer. They're never sent anywhere.
+
+Two numbers do leave it, about once an hour: how many macros you expanded and how many characters they saved since the last time. They're added to a running total across everyone using Macro Manager, shown on [throughnateseyes.com/work/macro-manager](https://throughnateseyes.com/work/macro-manager). Each report carries a random ID made on your computer (not tied to you or the machine), a sequence number, and the app version. Never a macro, an abbreviation, or anything you type.
+
+- Nothing is sent until you've answered the notice the app shows the first time.
+- **Settings → Your data → Add to the total** turns it off. Turning it back on doesn't send what happened while it was off.
+- Offline, it waits and sends the difference next time it can. The app works the same either way.
+- The code is [`lib/report.js`](lib/report.js), and `report.json` in the data folder is everything it keeps.
 
 | | Location |
 |---|---|
 | Mac | `~/Library/Application Support/macro-manager/` |
 | Windows | `%APPDATA%\macro-manager\` |
 
-`macros.json` holds your macros, `stats.json` your history, and `backups/` daily copies. **Settings → Export** makes a file you can import on another computer.
+`macros.json` holds your macros, `stats.json` your history, `report.json` what's been added to the total, and `backups/` daily copies. **Settings → Export** makes a file you can import on another computer.
 
 ## Development
 

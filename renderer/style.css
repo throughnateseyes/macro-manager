@@ -142,6 +142,8 @@ body.win .win-brand { display: flex; }
 .banner strong { display: block; font-weight: 600; margin-bottom: 2px; }
 .banner p { color: var(--text-2); }
 .banner .btn { margin-top: 8px; }
+.banner-actions { display: flex; gap: 6px; margin-top: 8px; }
+.banner-actions .btn { margin-top: 0; }
 .banner.warn { border-color: var(--orange-soft); }
 .banner .progress { height: 4px; border-radius: 2px; background: var(--surface-2); margin-top: 8px; overflow: hidden; }
 .banner .progress span { display: block; height: 100%; background: var(--accent); transition: width 200ms; }
