@@ -8,7 +8,7 @@ const results = document.getElementById('results');
 let state = { macros: { prefix: '/', snippets: [] }, usage: {}, builtIns: [], stats: { lifetime: 0, days: {} }, today: '' };
 let items = [];
 let active = 0;
-let mode = 'insert'; // 'insert' pastes into the previous app, 'tray' copies
+let mode = 'insert'; // 'insert' pastes into the previous app, 'tray' copies, 'app' opens the macro
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const oneLine = (s) => String(s || '').replace(/\s+/g, ' ').trim();
@@ -158,6 +158,7 @@ function insert(i = active) {
   const it = items[i];
   if (!it) return;
   if (mode === 'tray') return copy(i);
+  if (mode === 'app') return it.builtIn ? copy(i) : api.paletteOpenMacro(it.index);
   api.paletteInsert({ content: it.content, abbr: it.builtIn ? null : it.abbr });
 }
 
@@ -186,7 +187,7 @@ function streak() {
 function renderMode() {
   const tray = mode === 'tray';
   document.getElementById('tray-head').classList.toggle('hidden', !tray);
-  document.getElementById('enter-label').textContent = tray ? 'Copy' : 'Insert';
+  document.getElementById('enter-label').textContent = tray ? 'Copy' : mode === 'app' ? 'Open' : 'Insert';
   document.getElementById('copy-hint').classList.toggle('hidden', tray);
   if (tray) {
     document.getElementById('t-today').textContent = (state.stats.days[dayKey(new Date())]?.total || 0).toLocaleString();

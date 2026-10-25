@@ -492,6 +492,7 @@ function renderView() {
   el.view.innerHTML = '';
   if (state.view === 'editor' && state.macros.snippets[state.selected]) return renderEditor();
   if (state.view === 'builtins') return renderBuiltIns();
+  if (state.view === 'library') return renderLibrary();
   if (state.view === 'settings') return renderSettings();
   state.view = 'overview';
   renderNav();
@@ -682,8 +683,6 @@ async function newMacro() {
   if (blank !== -1) return go('editor', blank);
   const folder = state.view === 'editor' ? s[state.selected]?.folder : undefined;
   s.push({ title: '', abbr: '', content: '', ...(folder ? { folder } : {}) });
-  state.search = '';
-  el.search.value = '';
   await go('editor', s.length - 1);
 }
 
@@ -1035,24 +1034,14 @@ $('#btn-sort').addEventListener('click', (e) => {
   ], { align: 'right' });
 });
 
-el.search.addEventListener('input', () => {
-  state.search = el.search.value;
-  renderList();
-});
-el.search.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    moveSelection(e.key === 'ArrowDown' ? 1 : -1);
-  } else if (e.key === 'Enter') {
-    const first = visibleOrder()[0];
-    if (first !== undefined) go('editor', state.selected >= 0 ? state.selected : first).then(() => $('#f-content')?.focus());
-  } else if (e.key === 'Escape') {
-    el.search.value = '';
-    state.search = '';
-    renderList();
-    el.search.blur();
-  }
-});
+// The search box at the top is Quick Insert: the same window and the same
+// shortcut as everywhere else on the machine. Filtering the library lives on
+// the Macros page.
+el.search.addEventListener('click', () => api.showPalette());
+
+function updateSearchKbd() {
+  el.searchKbd.textContent = prettyAccel(state.settings.quickInsertShortcut).replace(/ \+ /g, '+').replace(' Space', 'Space');
+}
 
 function isTyping() {
   const a = document.activeElement;
@@ -1064,7 +1053,8 @@ document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
 
   if (mod && k === 'n') { e.preventDefault(); newMacro(); return; }
-  if (mod && (k === 'f' || k === 'k')) { e.preventDefault(); el.search.focus(); el.search.select(); return; }
+  if (mod && k === 'k') { e.preventDefault(); api.showPalette(); return; }
+  if (mod && k === 'f') { e.preventDefault(); go('library').then(() => $('#lib-q')?.focus()); return; }
   if (mod && k === ',') { e.preventDefault(); go('settings'); return; }
   if (mod && k === 's') { e.preventDefault(); if (state.view === 'editor') flushSave().then(() => toast('Saved')); return; }
   if (mod && k === 'd' && state.view === 'editor') { e.preventDefault(); duplicateMacro(); return; }
@@ -1103,7 +1093,7 @@ document.addEventListener('keydown', (e) => {
     tokens: s.tokens,
   });
   document.body.classList.add(IS_MAC() ? 'mac' : 'win');
-  el.searchKbd.textContent = IS_MAC() ? '⌘F' : 'Ctrl+F';
+  updateSearchKbd();
   render();
 
   api.onStatsChanged(({ usage, stats }) => {
@@ -1122,6 +1112,7 @@ document.addEventListener('keydown', (e) => {
   });
   api.onSettingsChanged((settings) => {
     state.settings = settings;
+    updateSearchKbd();
     renderFooter();
     if (state.view === 'settings' || state.view === 'overview') renderView();
   });

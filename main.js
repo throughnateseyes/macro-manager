@@ -225,12 +225,16 @@ function createPalette() {
 let paletteOpenedFromApp = false;
 
 // mode 'insert' — opened by shortcut: Enter pastes into the app you were in.
+// mode 'app'    — opened over Macro Manager's own window: Enter opens the macro.
 // mode 'tray'   — opened from the Windows tray icon: the taskbar has focus,
 //                 so Enter copies instead and the window sits by the clock.
 function showPalette(mode = 'insert') {
   if (!paletteWindow || paletteWindow.isDestroyed()) createPalette();
   if (paletteWindow.isVisible()) { hidePalette(); return; }
   paletteOpenedFromApp = Boolean(mainWindow && mainWindow.isFocused());
+  // Opened over Macro Manager itself there's nothing to paste into, so Enter
+  // opens the macro instead.
+  if (mode === 'insert' && paletteOpenedFromApp) mode = 'app';
   if (paletteWindow.isMinimized()) paletteWindow.restore();
 
   const [w, h] = paletteWindow.getSize();

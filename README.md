@@ -32,7 +32,8 @@ Type `/sig` then Space, and it becomes your full email signature. Type `/tour` a
 
 - **System-wide expansion**: `prefix + abbreviation`, then Space, Tab, or Enter
 - **Smart placeholders**: `{cursor}` `{clipboard}` `{date}` `{date+7}` `{time}` `{day}` `{weekday}` and more
-- **Quick Insert**: `⌘⇧Space` on Mac, `Ctrl+Alt+Space` on Windows
+- **Quick Insert**: `⌘⇧Space` on Mac, `Ctrl+Alt+Space` on Windows. One shortcut everywhere, including the search box inside the app, with Pinned and Recent at the top
+- **Macros library**: every macro as a card, with what it types, how often it's used and when, grouped by Pinned, Recent and folder
 - **Stats that make it a habit**: lifetime expansions, day streaks, milestones, an activity heatmap, and typing time saved
 - **Pinned macros** in the tray or menu bar for one-click copy
 - **Folders, search, and sorting**, all keyboard-driven
