@@ -258,8 +258,24 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 
 .divider { height: 0.5px; background: var(--border); margin: 6px 0 14px; }
 
-.content-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.content-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
 .content-head .label { font-size: 12px; color: var(--text-2); font-weight: 500; }
+.content-tools { display: flex; align-items: center; gap: 6px; }
+.fmt-tools { display: flex; align-items: center; gap: 1px; margin-right: 4px; padding-right: 8px; border-right: 0.5px solid var(--border-2); }
+.fmt-btn { display: grid; place-items: center; width: 26px; height: 24px; border-radius: 5px; color: var(--text-2); }
+.fmt-btn:hover { background: var(--hover); color: var(--text); }
+.fmt-btn:active { background: var(--press); }
+.fmt-btn .icon { width: 15px; height: 15px; }
+
+/* Format: a property you can open, like a select. */
+.prop-select {
+  display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+  height: 30px; margin-top: 2px; padding: 0 6px 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.prop-select:hover { background: var(--hover); }
+.prop-select .chev { width: 12px; height: 12px; color: var(--text-3); }
 
 .content-input {
   width: 100%;
@@ -281,6 +297,8 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 }
 .preview-card .head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
 .preview-card .body { white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.6; -webkit-user-select: text; user-select: text; }
+.preview-card .field-chip { cursor: pointer; }
+.preview-card .field-chip:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .preview-card .caret { display: inline-block; width: 1.5px; height: 1.1em; background: var(--accent); vertical-align: text-bottom; margin: 0 1px; animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
@@ -344,6 +362,46 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 @keyframes sheet-fade { from { opacity: 0; } }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+
+/* ---- Popovers: Add link, Add field ---- */
+.popover {
+  position: fixed; z-index: 110;
+  width: 320px;
+  padding: 14px 14px 12px;
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: var(--shadow-lg);
+  animation: sheet-in 140ms var(--ease);
+}
+.pop-form h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.pop-row { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 10px; margin-bottom: 8px; }
+.pop-row.top { align-items: start; }
+.pop-row.top > span { padding-top: 6px; }
+.pop-row > span { font-size: 12.5px; color: var(--text-2); }
+.pop-row input, .pop-row textarea {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--border-2);
+  background: var(--bg);
+  font-size: 13px;
+  resize: none;
+}
+.pop-row input { height: 28px; }
+.pop-row input:focus, .pop-row textarea:focus { border-color: var(--accent); box-shadow: var(--focus); }
+.pop-row input::placeholder, .pop-row textarea::placeholder { color: var(--text-3); }
+.seg { display: flex; padding: 2px; border-radius: 7px; background: var(--surface-2); }
+.seg button { flex: 1; height: 22px; border-radius: 5px; font-size: 12px; color: var(--text-2); }
+.seg button[aria-checked="true"] { background: var(--raised); color: var(--text); box-shadow: var(--shadow-sm); font-weight: 500; }
+.pop-note { margin: 2px 0 0 74px; font-size: 11.5px; color: var(--text-3); line-height: 1.45; }
+.pop-msg { margin: 6px 0 0 74px; font-size: 12px; color: var(--orange); }
+.pop-actions { display: flex; align-items: center; gap: 6px; margin-top: 14px; }
+.pop-actions .spacer { flex: 1; }
+.btn.danger-text { color: var(--red); }
+
+/* Try it: the fill-in form as a sheet. */
+.sheet.fill-sheet { width: min(460px, calc(100vw - 32px)); }
+.fill-sheet #ask-preview { margin-top: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--surface); max-height: 180px; overflow-y: auto; }
 
 /* ---- What's new ---- */
 .sheet.whatsnew { width: min(460px, calc(100vw - 32px)); padding: 0 0 16px; overflow: hidden; }

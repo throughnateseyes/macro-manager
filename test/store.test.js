@@ -105,3 +105,22 @@ test('renaming moves a recent and deleting forgets it', () => {
   store.deleteUsage('followup');
   assert.deepStrictEqual(store.loadStats().recent.map((r) => r.abbr), ['addr']);
 });
+
+test('format and fields are kept, cleaned, or dropped', () => {
+  const dir = tmp();
+  const store = createStore(dir);
+  const saved = store.saveMacros({ prefix: '/', snippets: [
+    { title: 'Rich', abbr: 'r', content: '**hi** {field:Unit}', format: 'rich', fields: [{ label: 'Unit', choices: ['2A', ''] }] },
+    { title: 'Odd', abbr: 'o', content: 'x', format: 'html', fields: [] },
+  ] });
+  assert.deepStrictEqual(saved.snippets[0], { title: 'Rich', abbr: 'r', content: '**hi** {field:Unit}', format: 'rich', fields: [{ label: 'Unit', choices: ['2A'] }] });
+  assert.deepStrictEqual(saved.snippets[1], { title: 'Odd', abbr: 'o', content: 'x' });
+});
+
+test('fill-in answers are remembered in fields.json', () => {
+  const dir = tmp();
+  const store = createStore(dir);
+  assert.deepStrictEqual(store.loadFieldMemory(), {});
+  store.rememberFields([{ key: 'name', label: 'Name' }], { name: 'Jane' });
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'fields.json'), 'utf-8')), { name: ['Jane'] });
+});

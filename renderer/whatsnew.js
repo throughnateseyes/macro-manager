@@ -12,6 +12,10 @@
 const SEEN_KEY = 'whatsNewSeen';
 
 const RELEASE_NOTES = {
+  '2.2': () => [
+    { tile: 'bold', title: 'Formatting that survives the paste', text: `Bold, italics, links and lists now land formatted in Outlook, Zendesk, Gmail and Teams, and as clean text everywhere else. Set a macro’s Format to Formatted, or press ${MOD()}B in it.` },
+    { tile: 'field', title: 'Fill-in fields', text: 'Add a field for a name, a unit or anything that changes. When the macro expands, a small window asks for it, with defaults and pick-lists. Macros without fields work exactly as before.' },
+  ],
   '2.1': () => {
     const qi = prettyAccel(state.settings.quickInsertShortcut);
     const open = prettyAccel(state.settings.openWindowShortcut);
@@ -32,6 +36,8 @@ const NOTE_TILES = {
   pin: ['#ffb340', '#ff8a00', '<path d="M7.5 4.5h5M8.3 4.5v3.6L6.4 10.4v1h7.2v-1L11.7 8.1V4.5Z" fill="#fff"/><path d="M10 11.4v4.1" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>'],
   sky: ['#4aa3ff', '#0a6cf0', '<path fill="#fff" d="M6.2 14.2a3 3 0 0 1-.4-5.97 4.2 4.2 0 0 1 8.05.86A2.6 2.6 0 0 1 13.9 14.2Z"/>'],
   braces: ['#8f8bff', '#5b55e8', '<path d="M8 5c-1.4 0-1.8.6-1.8 1.8v1.4c0 .8-.4 1.3-1.2 1.8.8.5 1.2 1 1.2 1.8v1.4c0 1.2.4 1.8 1.8 1.8M12 5c1.4 0 1.8.6 1.8 1.8v1.4c0 .8.4 1.3 1.2 1.8-.8.5-1.2 1-1.2 1.8v1.4c0 1.2-.4 1.8-1.8 1.8" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>'],
+  bold: ['#4aa3ff', '#0a6cf0', '<path d="M7 5h3.6a2.4 2.4 0 0 1 0 4.8H7zM7 9.8h4.1a2.6 2.6 0 0 1 0 5.2H7z" fill="none" stroke="#fff" stroke-width="1.9" stroke-linejoin="round"/>'],
+  field: ['#8f8bff', '#5b55e8', '<rect x="4" y="6.5" width="12" height="7" rx="2" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M8 8.5v3" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>'],
   undo: ['#34c759', '#1f9e45', '<path d="M7.5 8.5H12a3 3 0 0 1 0 6H9" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="m9.5 6-2.5 2.5L9.5 11" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'],
 };
 

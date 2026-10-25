@@ -21,14 +21,27 @@
       <input id="q" type="text" placeholder="Search macros" autocomplete="off" spellcheck="false" />
     </label>
     <div id="results" class="results" role="listbox"></div>
+    <section id="fill" class="fill hidden" aria-labelledby="fill-title">
+      <header class="fill-head">
+        <span id="fill-title" class="fill-title"></span>
+        <span id="fill-abbr" class="chip"></span>
+      </header>
+      <div id="fill-fields" class="fill-fields"></div>
+      <div class="fill-preview">
+        <div class="fill-preview-label">Preview</div>
+        <div id="fill-preview" class="fill-preview-body expansion"></div>
+      </div>
+    </section>
     <footer class="foot">
       <span><kbd>↵</kbd> <span id="enter-label">Insert</span></span>
       <span id="copy-hint"><kbd id="k-copy">⌘C</kbd> Copy</span>
-      <span><kbd id="k-edit">⌘E</kbd> Edit</span>
+      <span id="edit-hint"><kbd id="k-edit">⌘E</kbd> Edit</span>
+      <span id="tab-hint" class="hidden"><kbd>tab</kbd> Next field</span>
       <span class="spacer"></span>
-      <span><kbd>esc</kbd> Close</span>
+      <span><kbd>esc</kbd> <span id="esc-label">Close</span></span>
     </footer>
   </div>
-  <script src="mock-api.js"></script><script src="../renderer/palette.js"></script>
+  <script src="../lib/placeholders.js"></script><script src="../lib/fields.js"></script><script src="../lib/format.js"></script>
+  <script src="mock-api.js"></script><script src="../renderer/fillform.js"></script><script src="../renderer/palette.js"></script>
 </body>
 </html>

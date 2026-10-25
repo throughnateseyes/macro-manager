@@ -110,11 +110,15 @@ async function moveToFolder(index, folder) {
   toast(folder ? `Moved to ${folder}` : 'Removed from folder');
 }
 
+// Copies the way it would paste (both flavours when formatted). Fields get
+// their default, or their name in brackets to fill in by hand.
 async function copyMacroText(index) {
   const m = state.macros.snippets[index];
   if (!m) return;
-  const { text } = await api.previewTemplate(m.content);
-  await navigator.clipboard.writeText(text);
+  const fields = fieldsFor(m);
+  const values = initialValues(fields);
+  for (const f of fields) if (!values[f.key]) values[f.key] = `[${f.label}]`;
+  await api.copyExpansion({ content: m.content, format: m.format, fields: m.fields, values });
   toast('Copied');
 }
 

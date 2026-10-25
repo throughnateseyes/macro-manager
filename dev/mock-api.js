@@ -1,6 +1,8 @@
 // Browser-only stand-in for preload.js so the renderer can be previewed
 // without Electron:  python3 -m http.server 5180  →  /dev/preview.html
 // Add ?platform=win32 to preview the Windows layout, ?empty to start blank.
+// palette.html?mode=fill opens the fill-in prompt for Tour Confirmation.
+// Expansions render with the real lib/format.js (loaded before this file).
 (() => {
   const params = new URLSearchParams(location.search);
   // ?solid — no native vibrancy in a browser, so paint the sidebar.
@@ -11,7 +13,11 @@
     { title: 'Email Signature', abbr: 'sig', content: 'Best,\nNate Ziehn\nBrick + Timber', pinned: true },
     { title: 'Follow-up', abbr: 'fu', content: 'Hi {cursor}, just following up on my last note. Let me know if you have any questions!' },
     { title: 'Office Address', abbr: 'addr', content: '123 Market St, Suite 400\nSan Francisco, CA 94103', folder: 'Leasing' },
-    { title: 'Tour Confirmation', abbr: 'tour', content: 'Thanks for scheduling a tour on {date+2}! Parking is available on the street.', folder: 'Leasing', pinned: true },
+    {
+      title: 'Tour Confirmation', abbr: 'tour', folder: 'Leasing', pinned: true, format: 'rich',
+      content: 'Hi {field:Resident name},\n\nThanks for booking a tour of **unit {field:Unit}** on {date+2}. A few things before you come:\n\n- Street parking is free after 6 pm\n- Bring a photo ID\n- [Directions to the leasing office](https://maps.example.com/brick-timber)\n\nSee you then,\n{field:Agent}',
+      fields: [{ label: 'Unit', choices: ['2A', '4B', '7C', '12F'] }, { label: 'Agent', default: 'Nate' }],
+    },
     { title: 'Application Received', abbr: 'app', content: 'We received your application on {date} and will be in touch within 2 business days.', folder: 'Leasing' },
     { title: 'Zoom Link', abbr: 'zoom', content: 'https://zoom.us/j/1234567890' },
     { title: 'Maintenance Reply', abbr: 'mr', content: 'Thanks for letting us know — a technician will reach out to schedule a visit.', folder: 'Residents' },
@@ -64,22 +70,8 @@
     { token: '{time}', label: 'Time', desc: '12-hour time' },
   ];
 
-  const fmtDate = (d) => `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
-  function preview(content) {
-    let cursorAt = -1;
-    const out = content.replace(/\{(cursor|clipboard|date(?:[+-]\d+)?|ts|isodate|time24|time|day|unix)\}/g, (_m, t, off, str) => {
-      if (t === 'cursor') { cursorAt = off; return ''; }
-      if (t === 'clipboard') return '[clipboard]';
-      const d = new Date();
-      if (t.startsWith('date') && t.length > 4) d.setDate(d.getDate() + Number(t.slice(4)));
-      if (t.startsWith('date')) return fmtDate(d);
-      if (t === 'isodate') return d.toISOString().slice(0, 10);
-      if (t.startsWith('time')) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      if (t === 'unix') return String(Math.floor(Date.now() / 1000));
-      return d.toLocaleString();
-    });
-    return { text: out, cursorBack: cursorAt === -1 ? 0 : out.length - cursorAt };
-  }
+  const preview = (content, opts) => renderExpansion(content, { ...(opts || {}), clipboard: '[clipboard]' });
+  const fieldMemory = { 'resident name': ['Jane Park', 'Marcus Lee'] };
 
   let data = { prefix: '/', snippets };
   let settings = {
@@ -94,14 +86,16 @@
       version: params.get('v') || '2.1.0', platform: params.get('platform') || 'darwin',
       dataPath: params.get('platform') === 'win32' ? 'C:\\Users\\you\\AppData\\Roaming\\macro-manager\\macros.json' : '~/Library/Application Support/macro-manager/macros.json',
       accessibility: !params.has('noax'), update: { status: params.get('update') || 'idle', version: '2.0.1', percent: 40 },
-      builtIns: BUILT_INS, tokens: TOKENS,
+      builtIns: BUILT_INS, tokens: TOKENS, fieldMemory,
     }),
     saveMacros: async (d) => { data = JSON.parse(JSON.stringify(d)); return data; },
     popupMenu: async (items) => { console.log('[mock] context menu', items.map((i) => i.label || i.role || '—').join(' | ')); return null; },
     onInsertToken: noop,
     renameUsage: async () => usage,
     deleteUsage: async () => usage,
-    previewTemplate: async (c) => preview(c),
+    previewTemplate: async (c, opts) => preview(c, opts),
+    copyExpansion: async (p) => preview(p.content, p),
+    paletteFill: async (values) => console.log('[mock] fill', values),
     setSettings: async (p) => { if (!('__suspendShortcuts' in p)) settings = { ...settings, ...p }; return settings; },
     exportMacros: async () => ({ ok: true, count: data.snippets.length }),
     importMacros: async () => ({ ok: false }),
@@ -111,6 +105,11 @@
     paletteInsert: async () => {}, paletteClose: async () => {}, paletteCopied: async () => {}, paletteOpenMacro: async () => {},
     onMacrosChanged: noop, onStatsChanged: noop, onSettingsChanged: noop, onUpdateState: noop,
     onNavigate: noop, onAccessibility: noop,
-    onPaletteOpen: (cb) => { setTimeout(() => cb({ mode: params.get('mode') || 'insert' }), 50); return () => {}; },
+    onPaletteOpen: (cb) => {
+      const mode = params.get('mode') || 'insert';
+      const fill = mode === 'fill' ? { macro: data.snippets.find((m) => m.abbr === 'tour'), action: 'paste' } : undefined;
+      setTimeout(() => cb({ mode, fill }), 50);
+      return () => {};
+    },
   };
 })();

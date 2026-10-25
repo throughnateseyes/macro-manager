@@ -11,7 +11,8 @@ contextBridge.exposeInMainWorld('macroAPI', {
   saveMacros:        (data) => ipcRenderer.invoke('macros:save', data),
   renameUsage:       (from, to) => ipcRenderer.invoke('usage:rename', from, to),
   deleteUsage:       (abbr) => ipcRenderer.invoke('usage:delete', abbr),
-  previewTemplate:   (content) => ipcRenderer.invoke('template:preview', content),
+  previewTemplate:   (content, opts) => ipcRenderer.invoke('template:preview', content, opts),
+  copyExpansion:     (payload) => ipcRenderer.invoke('expansion:copy', payload),
   setSettings:       (patch) => ipcRenderer.invoke('settings:set', patch),
   exportMacros:      () => ipcRenderer.invoke('macros:export'),
   importMacros:      () => ipcRenderer.invoke('macros:import'),
@@ -24,6 +25,7 @@ contextBridge.exposeInMainWorld('macroAPI', {
   popupMenu:         (items) => ipcRenderer.invoke('menu:popup', items),
 
   paletteInsert:     (payload) => ipcRenderer.invoke('palette:insert', payload),
+  paletteFill:       (values) => ipcRenderer.invoke('palette:fill', values),
   paletteClose:      () => ipcRenderer.invoke('palette:close'),
   paletteCopied:     (payload) => ipcRenderer.invoke('palette:copied', payload),
   paletteOpenMacro:  (index) => ipcRenderer.invoke('palette:openMacro', index),

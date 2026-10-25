@@ -24,13 +24,17 @@ Type `/sig` then Space, and it becomes your full email signature. Type `/tour` a
 | | |
 |---|---|
 | ![Editor](docs/screenshots/editor-light.png) | ![Quick Insert](docs/screenshots/quick-insert-dark.png) |
-| **Notion-style editor** with autosave, folders, and live preview | **Quick Insert**: search every macro from any app and paste it |
+| **Notion-style editor** with formatting, fill-in fields, and live preview | **Quick Insert**: search every macro from any app and paste it |
+| ![Fill-in prompt](docs/screenshots/fill-in-light.png) | ![Add field](docs/screenshots/add-field-windows.png) |
+| **Fill-in fields**: type `/tour`, fill in the name and unit, press Enter | **Add a field** while you write: typed in, or picked from a list |
 | ![Settings on Windows](docs/screenshots/settings-windows.png) | ![Tray flyout](docs/screenshots/tray-flyout-windows.png) |
 | **Native on Windows** with theme-matched title bar controls | **Tray flyout**: today's count, streak, and one-click copy |
 
 ### Features
 
 - **System-wide expansion**: `prefix + abbreviation`, then Space, Tab, or Enter
+- **Formatting that survives the paste**: bold, italics, links and lists land formatted in Outlook, Zendesk, Gmail, Teams and Word, and as clean text in terminals and Excel. Nothing to switch
+- **Fill-in fields**: `{field:Resident name}` asks for a name, a unit or anything else when the macro expands, with defaults and pick-lists
 - **Smart placeholders**: `{cursor}` `{clipboard}` `{date}` `{date+7}` `{time}` `{day}` `{weekday}` and more
 - **Quick Insert**: `⌘⇧Space` on Mac, `Ctrl+Alt+Space` on Windows. One shortcut everywhere, including the search box inside the app, with Pinned and Recent at the top
 - **Macros library**: every macro as a card, with what it types, how often it's used and when, grouped by Pinned, Recent and folder
@@ -52,6 +56,18 @@ Type `/sig` then Space, and it becomes your full email signature. Type `/tour` a
 | `/time24` | 14:30:00 |
 | `/day` | Saturday, October 24 |
 | `/unix` | 1792880000 |
+
+### Formatting and fill-in fields
+
+Set a macro's **Format** to Formatted (or just press ⌘B / Ctrl+B in it) and write:
+
+| Write | Pastes as |
+|---|---|
+| `**bold**`, `*italic*` | **bold**, *italic* |
+| `[Directions](https://…)` | a link (in plain-text apps: Directions (https://…)) |
+| `- item`, `1. item` | a bulleted or numbered list |
+
+**Add field** puts `{field:Name}` where your cursor is. When you type the abbreviation, a small window asks for each field (Tab between them, Enter to paste, Esc to leave what you typed alone) and shows the finished text as you go. A field can have a default or a list of choices, and the same field used twice is asked once. Macros without fields expand instantly, exactly as before. The details are in [docs/MACRO-FORMAT.md](docs/MACRO-FORMAT.md).
 
 ## Installing
 
@@ -81,7 +97,7 @@ Everything stays on your computer. Nothing is sent anywhere.
 | Mac | `~/Library/Application Support/macro-manager/` |
 | Windows | `%APPDATA%\macro-manager\` |
 
-`macros.json` holds your macros, `stats.json` your history, and `backups/` daily copies. **Settings → Export** makes a file you can import on another computer.
+`macros.json` holds your macros, `stats.json` your history, `fields.json` your last few answers to each fill-in field (offered as suggestions), and `backups/` daily copies. **Settings → Export** makes a file you can import on another computer.
 
 ## Development
 
@@ -90,7 +106,7 @@ npm install
 npm start               # run the app (uses your real macros)
 npm run start:clean     # run with a throwaway data folder
 npm run preview         # UI in a browser with sample data → http://127.0.0.1:5180/dev/preview.html
-npm test                # unit tests (keyboard buffer, placeholders, storage)
+npm test                # unit tests (keyboard buffer, placeholders, formatting, fields, storage)
 npm run build:all       # build Mac + Windows installers into release/
 ```
 
@@ -100,6 +116,8 @@ preload.js         The only bridge between UI and system (contextIsolation, sand
 lib/expander.js    Global keyboard hook → backspace → paste → restore clipboard
 lib/keys.js        Keycode → character buffer (Shift-aware, unit-tested)
 lib/placeholders.js  {date} / {cursor} / built-ins
+lib/format.js      One renderer: Markdown subset → HTML + plain text, {cursor} count
+lib/fields.js      {field:…} tokens, their settings, remembered answers
 lib/store.js       Atomic JSON storage, daily backups, stats history
 renderer/          Main window + Quick Insert palette (vanilla JS, no framework)
 ```

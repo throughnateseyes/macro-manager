@@ -79,6 +79,12 @@ const ICON = {
   flame:     '<svg class="icon" viewBox="0 0 16 16"><path d="M8 14.5c2.8 0 4.5-1.9 4.5-4.4 0-2.9-2.5-4.4-3-7.6C7.6 3.6 6.8 5.6 7 7.4 6.1 6.9 5.6 6 5.5 5 4.2 6.2 3.5 7.9 3.5 10.1c0 2.5 1.7 4.4 4.5 4.4z"/></svg>',
   trophy:    '<svg class="icon" viewBox="0 0 16 16"><path d="M5 2.5h6v3.2a3 3 0 0 1-6 0zM5 3.5H2.8c0 2 .9 3.2 2.5 3.4M11 3.5h2.2c0 2-.9 3.2-2.5 3.4M8 8.7v2.8M5.5 13.5h5"/></svg>',
   check:     '<svg class="icon check" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7"/></svg>',
+  format:    '<svg class="icon" viewBox="0 0 16 16"><path d="M2 12.5 5.25 3.5h.5L9 12.5M3.1 9.5h4.8M10.5 8.4c.4-.6 1-.9 1.8-.9 1.1 0 1.7.6 1.7 1.7v3.3M14 10.4h-1.6c-1.2 0-1.9.5-1.9 1.2 0 .6.5 1 1.2 1 1.2 0 2.3-.8 2.3-2.2"/></svg>',
+  bold:      '<svg class="icon" viewBox="0 0 16 16"><path d="M4.75 2.75h3.9a2.6 2.6 0 0 1 0 5.2h-3.9zM4.75 7.95h4.5a2.65 2.65 0 0 1 0 5.3h-4.5z" stroke-width="1.8"/></svg>',
+  italic:    '<svg class="icon" viewBox="0 0 16 16"><path d="M7 2.75h5M4 13.25h5M9.6 2.75 6.4 13.25"/></svg>',
+  link:      '<svg class="icon" viewBox="0 0 16 16"><path d="M6.6 9.4 9.4 6.6M7.3 4.6l1.1-1.1a2.6 2.6 0 0 1 3.7 3.7L11 8.3M8.7 11.4l-1.1 1.1a2.6 2.6 0 0 1-3.7-3.7L5 7.7"/></svg>',
+  bullets:   '<svg class="icon" viewBox="0 0 16 16"><path d="M6.5 4h7M6.5 8h7M6.5 12h7"/><path d="M3 4h.01M3 8h.01M3 12h.01" stroke-width="2.2"/></svg>',
+  numbers:   '<svg class="icon" viewBox="0 0 16 16"><path d="M7 4h6.5M7 8h6.5M7 12h6.5"/><path d="M2.6 2.9 3.6 2.4v3.3M2.4 9.2c.2-.6.7-.8 1.1-.8.5 0 .9.3.9.8 0 .7-1.2 1.4-2 2.4h2.1" stroke-width="1.2"/></svg>',
 };
 
 let toastTimer;
@@ -376,7 +382,7 @@ function macroRow(i, q) {
         ${issues.warn ? '<span class="warn-dot" title="Needs attention"></span>' : ''}
         ${m.abbr ? `<span class="chip">${highlight(state.macros.prefix + m.abbr, q)}</span>` : ''}
       </div>
-      <div class="preview">${esc(preview(m.content, 80)) || '&nbsp;'}</div>
+      <div class="preview">${esc(preview(readableText(m), 80)) || '&nbsp;'}</div>
     </button>`);
   row.addEventListener('click', () => go('editor', i));
   row.addEventListener('contextmenu', (e) => showMacroMenu(i, e));
@@ -563,6 +569,12 @@ function renderEditor() {
           </div>
         </div>
         <div class="prop">
+          <div class="prop-label">${ICON.format}Format</div>
+          <div class="prop-value">
+            <button class="prop-select" id="f-format" type="button"></button>
+          </div>
+        </div>
+        <div class="prop">
           <div class="prop-label">${ICON.chart}Used</div>
           <div class="prop-value"><span class="prop-static used">${usage ? `${usage.toLocaleString()} time${usage === 1 ? '' : 's'} · ${week} this week ${sparkline(macroDaily(m.abbr, 30))}` : 'Not yet'}</span></div>
         </div>
@@ -570,12 +582,22 @@ function renderEditor() {
       <div class="divider"></div>
       <div class="content-head">
         <span class="label">Expands to</span>
-        <button class="btn small" id="btn-insert">${ICON.braces}Insert</button>
+        <div class="content-tools">
+          <div class="fmt-tools" role="toolbar" aria-label="Formatting">
+            <button class="fmt-btn" data-fmt="bold" title="Bold (${MOD()}B)">${ICON.bold}</button>
+            <button class="fmt-btn" data-fmt="italic" title="Italic (${MOD()}I)">${ICON.italic}</button>
+            <button class="fmt-btn" data-fmt="link" title="Link (${MOD()}K)">${ICON.link}</button>
+            <button class="fmt-btn" data-fmt="bullets" title="Bulleted list">${ICON.bullets}</button>
+            <button class="fmt-btn" data-fmt="numbers" title="Numbered list">${ICON.numbers}</button>
+          </div>
+          <button class="btn small" id="btn-insert">${ICON.braces}Insert</button>
+          <button class="btn small" id="btn-field">${ICON.plus}Add field</button>
+        </div>
       </div>
       <textarea id="f-content" class="content-input" placeholder="Type what this macro should expand to…" spellcheck="true">${esc(m.content)}</textarea>
       <div class="preview-card hidden" id="preview-card">
-        <div class="head"><span>Preview</span><span>Placeholders filled in</span></div>
-        <div class="body" id="preview-body"></div>
+        <div class="head"><span>Preview</span><span id="preview-note"></span></div>
+        <div class="body expansion" id="preview-body"></div>
       </div>
       <div class="tryit">
         <label class="tryit-label" for="f-try">Try it</label>
@@ -619,6 +641,29 @@ function renderEditor() {
   });
 
   $('#btn-insert').addEventListener('click', (e) => openInsertMenu(e.currentTarget, fContent));
+  $('#btn-field').addEventListener('click', (e) => openFieldPopover(e.currentTarget, fContent));
+  $('#f-format').addEventListener('click', (e) => openFormatMenu(e.currentTarget));
+  ed.querySelectorAll('.fmt-btn').forEach((b) => {
+    // Keep the selection in the text box while clicking.
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    b.addEventListener('click', () => applyFormat(b.dataset.fmt, fContent, b));
+  });
+  fContent.addEventListener('keydown', (e) => {
+    const mod = IS_MAC() ? e.metaKey : e.ctrlKey;
+    if (!mod || e.altKey || e.shiftKey) return;
+    const k = e.key.toLowerCase();
+    const fmt = k === 'b' ? 'bold' : k === 'i' ? 'italic' : k === 'k' ? 'link' : null;
+    if (!fmt) return;
+    // ⌘K is Quick Insert everywhere else in the window; in the text it's Link.
+    e.preventDefault();
+    e.stopPropagation();
+    applyFormat(fmt, fContent, $('.fmt-btn[data-fmt="link"]'));
+  });
+  $('#preview-body').addEventListener('click', (e) => {
+    const chip = e.target.closest('.field-chip');
+    if (chip) openFieldPopover(chip, fContent, chip.dataset.field);
+  });
+  renderFormatProp();
   wireTryIt($('#f-try'));
 
   updateEditorMeta();
@@ -643,7 +688,14 @@ function wireTryIt(box) {
     if (content === null || !content.trim()) return;
     e.preventDefault();
     const start = caret - (word.length - at);
-    const { text, cursorBack } = await api.previewTemplate(content);
+    // Fields: ask first, like the real thing. Esc leaves the typing alone.
+    let values;
+    if (match && fieldsFor(match).length) {
+      values = await askFields(match);
+      box.focus();
+      if (!values) return;
+    }
+    const { text, cursorBack } = await api.previewTemplate(content, { format: match && match.format, values });
     box.setRangeText(text, start, caret, 'end');
     const pos = box.selectionEnd - cursorBack;
     box.setSelectionRange(pos, pos);
@@ -679,25 +731,33 @@ async function updateEditorMeta() {
       : 'Give this macro an abbreviation, then try it here';
   }
 
-  // Only show the preview when placeholders change what gets pasted.
+  // Only show the preview when it differs from the text: placeholders,
+  // fields or formatting.
   const card = $('#preview-card');
-  if (!/\{[a-z0-9+-]+\}/i.test(m.content)) { card.classList.add('hidden'); return; }
+  const rich = m.format === 'rich';
+  const hasFieldTokens = fieldLabels(m.content).length > 0;
+  if (!rich && !/\{[a-z0-9+-]+\}/i.test(m.content) && !hasFieldTokens) { card.classList.add('hidden'); return; }
   const seq = ++previewSeq;
-  const { text: out, cursorBack } = await api.previewTemplate(m.content);
+  const { html } = await api.previewTemplate(m.content, { format: m.format, chips: true, caret: true });
   if (seq !== previewSeq || !$('#preview-body')) return;
-  const cut = Array.from(out);
-  const at = cut.length - cursorBack;
-  $('#preview-body').innerHTML = cursorBack
-    ? esc(cut.slice(0, at).join('')) + '<span class="caret"></span>' + esc(cut.slice(at).join(''))
-    : esc(out);
+  $('#preview-body').innerHTML = html;
+  $('#preview-note').textContent = hasFieldTokens ? 'Click a field to change it' : rich ? 'As it pastes into email' : 'Placeholders filled in';
   card.classList.remove('hidden');
+}
+
+// Replace a range of the text box and keep ⌘Z working: insertText goes
+// through the browser's undo stack, setRangeText doesn't.
+function replaceRange(textarea, a, b, text, select = 'end') {
+  textarea.focus();
+  textarea.setSelectionRange(a, b);
+  if (!document.execCommand('insertText', false, text)) textarea.setRangeText(text, a, b, 'end');
+  if (select === 'all') textarea.setSelectionRange(a, a + text.length);
+  textarea.dispatchEvent(new Event('input'));
 }
 
 function insertToken(textarea, token) {
   const { selectionStart: a, selectionEnd: b } = textarea;
-  textarea.focus();
-  textarea.setRangeText(token, a, b, 'end');
-  textarea.dispatchEvent(new Event('input'));
+  replaceRange(textarea, a, b, token);
   if (token === '{date+7}') {
     // Select the number so it's easy to change.
     const pos = textarea.selectionEnd - 2;
@@ -717,6 +777,255 @@ function openInsertMenu(anchor, textarea) {
   ], { align: 'right' });
 }
 
+// ---- Formatting ---------------------------------------------------------------
+// The controls write a small Markdown subset into the text (docs/MACRO-FORMAT.md);
+// the Preview shows it formatted. Using one turns the macro's Format to
+// Formatted, so existing macros never change on their own.
+const FORMATS = [
+  { id: 'plain', text: 'Plain text', sub: 'The same in every app' },
+  { id: 'rich', text: 'Formatted', sub: 'Bold, links and lists in apps that support them' },
+];
+
+function renderFormatProp() {
+  const m = state.macros.snippets[state.selected];
+  const b = $('#f-format');
+  if (!m || !b) return;
+  b.innerHTML = `${m.format === 'rich' ? 'Formatted' : 'Plain text'}${ICON.chevron}`;
+}
+
+function setFormat(format) {
+  const m = state.macros.snippets[state.selected];
+  if (!m || (m.format || 'plain') === format) return;
+  if (format === 'rich') m.format = 'rich'; else delete m.format;
+  renderFormatProp();
+  scheduleSave();
+  updateEditorMeta();
+}
+
+function openFormatMenu(anchor) {
+  const m = state.macros.snippets[state.selected];
+  openMenu(anchor, FORMATS.map((f) => ({
+    text: f.text, sub: f.sub, checked: (m.format || 'plain') === f.id, onClick: () => setFormat(f.id),
+  })));
+}
+
+function applyFormat(kind, ta, anchor) {
+  if (kind === 'link') { openLinkPopover(anchor, ta); return; }
+  setFormat('rich');
+  if (kind === 'bold') toggleWrap(ta, '**', 'bold text');
+  if (kind === 'italic') toggleWrap(ta, '*', 'italic text');
+  if (kind === 'bullets') toggleLines(ta, () => '- ', /^- /);
+  if (kind === 'numbers') toggleLines(ta, (n) => `${n}. `, /^\d{1,3}[.)] /);
+}
+
+// Wrap the selection in a marker, or unwrap it if it already is. With no
+// selection, insert a sample and select it so typing replaces it.
+function toggleWrap(ta, mark, sample) {
+  const { selectionStart: a, selectionEnd: b, value } = ta;
+  const sel = value.slice(a, b);
+  const n = mark.length;
+  // ** is bold; a lone * next to it is not italics.
+  const isMark = (at) => value.slice(at, at + n) === mark && (n === 2 || (value[at - 1] !== '*' && value[at + 1] !== '*'));
+  if (sel && isMark(a - n) && isMark(b)) {
+    replaceRange(ta, a - n, b + n, sel, 'all');
+  } else if (sel.length > 2 * n && sel.startsWith(mark) && sel.endsWith(mark)) {
+    replaceRange(ta, a, b, sel.slice(n, -n), 'all');
+  } else {
+    // Markers hug the words: keep spaces at either end of the selection outside.
+    const lead = sel.match(/^\s*/)[0], trail = sel.slice(lead.length).match(/\s*$/)[0];
+    const inner = sel.trim() || sample;
+    replaceRange(ta, a, b, `${lead}${mark}${inner}${mark}${trail}`);
+    const start = a + lead.length + n;
+    ta.setSelectionRange(start, start + inner.length);
+  }
+}
+
+// Turn the selected lines into a list, or back into plain lines.
+function toggleLines(ta, marker, re) {
+  const { value } = ta;
+  const a = value.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+  let b = value.indexOf('\n', ta.selectionEnd - (ta.selectionEnd > ta.selectionStart && value[ta.selectionEnd - 1] === '\n' ? 1 : 0));
+  if (b === -1) b = value.length;
+  const lines = value.slice(a, b).split('\n');
+  const filled = lines.filter((l) => l.trim());
+  const on = filled.length > 0 && filled.every((l) => re.test(l));
+  const strip = (l) => l.replace(/^(- |\d{1,3}[.)] )/, '');
+  let n = 0;
+  const next = lines.map((l) => (!l.trim() ? l : on ? strip(l) : marker(++n) + strip(l))).join('\n');
+  replaceRange(ta, a, b, next, 'all');
+}
+
+// ---- Popovers (link, field) ----------------------------------------------------
+let popoverCleanup = null;
+function openPopover(anchor, content, { align = 'right' } = {}) {
+  closePopover();
+  closeMenu();
+  const pop = h('<div class="popover" role="dialog"></div>');
+  pop.append(content);
+  document.body.append(pop);
+  const r = anchor.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let left = align === 'right' ? r.right - pw : r.left;
+  let top = r.bottom + 6;
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+  left = Math.min(Math.max(8, left), window.innerWidth - pw - 8);
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+  const onDown = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) closePopover(); };
+  setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+  pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); closePopover(true); } });
+  popoverCleanup = (refocus) => {
+    document.removeEventListener('mousedown', onDown);
+    pop.remove();
+    if (refocus) $('#f-content')?.focus();
+  };
+  pop.querySelector('input, textarea')?.focus();
+  return pop;
+}
+
+function closePopover(refocus = false) {
+  if (popoverCleanup) { const f = popoverCleanup; popoverCleanup = null; f(refocus); }
+}
+
+function openLinkPopover(anchor, ta) {
+  const { selectionStart: a, selectionEnd: b, value } = ta;
+  const sel = value.slice(a, b);
+  const selIsUrl = /^(https?:\/\/|mailto:|tel:|www\.)\S+$/i.test(sel.trim());
+  const form = h(`
+    <form class="pop-form">
+      <h3>Add link</h3>
+      <label class="pop-row"><span>Text</span><input id="pl-text" placeholder="What people see" value="${esc(selIsUrl ? '' : sel)}" /></label>
+      <label class="pop-row"><span>Link</span><input id="pl-url" placeholder="https://" value="${esc(selIsUrl ? sel.trim() : '')}" spellcheck="false" /></label>
+      <div class="pop-msg hidden" id="pl-msg"></div>
+      <div class="pop-actions"><span class="spacer"></span><button type="button" class="btn small" data-cancel>Cancel</button><button class="btn small primary">Add link</button></div>
+    </form>`);
+  form.querySelector('[data-cancel]').addEventListener('click', () => closePopover(true));
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    let url = form.querySelector('#pl-url').value.trim();
+    if (/^www\./i.test(url) || /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(url)) url = `https://${url}`;
+    else if (/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(url)) url = `mailto:${url}`;
+    if (!/^(https?:\/\/|mailto:|tel:)\S+$/i.test(url)) {
+      const msg = form.querySelector('#pl-msg');
+      msg.textContent = 'Use a web address, an email address, or tel: and a number.';
+      msg.classList.remove('hidden');
+      return;
+    }
+    const text = form.querySelector('#pl-text').value.trim().replace(/[[\]]/g, '') || url.replace(/^(mailto:|tel:)/, '');
+    closePopover();
+    setFormat('rich');
+    replaceRange(ta, a, b, `[${text}](${url})`);
+  });
+  const pop = openPopover(anchor, form);
+  // Focus whichever box still needs filling.
+  pop.querySelector(sel && !selIsUrl ? '#pl-url' : '#pl-text').focus();
+}
+
+// Add a field at the caret, or (with `label`) change or remove an existing one.
+function openFieldPopover(anchor, ta, label) {
+  const m = state.macros.snippets[state.selected];
+  const { selectionStart: a, selectionEnd: b } = ta;
+  const editing = Boolean(label);
+  const def = editing ? (m.fields || []).find((f) => f.label.toLowerCase() === label.toLowerCase()) || { label } : { label: '' };
+  let list = Boolean(def.choices);
+  const form = h(`
+    <form class="pop-form field-pop">
+      <h3>${editing ? 'Edit field' : 'Add field'}</h3>
+      <label class="pop-row"><span>Name</span><input id="pf-label" maxlength="40" placeholder="Resident name" value="${esc(def.label)}" /></label>
+      <div class="pop-row"><span>Answer</span>
+        <div class="seg" role="radiogroup">
+          <button type="button" role="radio" data-kind="text">Typed in</button>
+          <button type="button" role="radio" data-kind="list">From a list</button>
+        </div>
+      </div>
+      <label class="pop-row" data-for="text"><span>Default</span><input id="pf-default" placeholder="Optional" value="${esc(def.default || '')}" /></label>
+      <label class="pop-row top" data-for="list"><span>Choices</span><textarea id="pf-choices" rows="4" placeholder="One per line">${esc((def.choices || []).join('\n'))}</textarea></label>
+      <p class="pop-note" data-for="text">You’ll be asked for this each time the macro expands.</p>
+      <p class="pop-note" data-for="list">The first choice is picked unless you change it.</p>
+      <div class="pop-msg hidden" id="pf-msg"></div>
+      <div class="pop-actions">
+        ${editing ? '<button type="button" class="btn small danger-text" data-remove>Remove</button>' : ''}
+        <span class="spacer"></span>
+        <button type="button" class="btn small" data-cancel>Cancel</button>
+        <button class="btn small primary">${editing ? 'Save' : 'Add field'}</button>
+      </div>
+    </form>`);
+  const showKind = () => {
+    form.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-checked', String((x.dataset.kind === 'list') === list)));
+    form.querySelectorAll('[data-for]').forEach((x) => x.classList.toggle('hidden', (x.dataset.for === 'list') !== list));
+  };
+  form.querySelectorAll('.seg button').forEach((x) => x.addEventListener('click', () => {
+    list = x.dataset.kind === 'list';
+    showKind();
+    form.querySelector(list ? '#pf-choices' : '#pf-default').focus();
+  }));
+  showKind();
+  form.querySelector('[data-cancel]').addEventListener('click', () => closePopover(true));
+  form.querySelector('[data-remove]')?.addEventListener('click', () => {
+    closePopover();
+    m.fields = (m.fields || []).filter((f) => f.label.toLowerCase() !== label.toLowerCase());
+    replaceRange(ta, 0, ta.value.length, removeFieldFromContent(ta.value, label));
+  });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = cleanLabel(form.querySelector('#pf-label').value);
+    const msg = form.querySelector('#pf-msg');
+    const fail = (t) => { msg.textContent = t; msg.classList.remove('hidden'); };
+    if (!name) return fail(/[{}]/.test(form.querySelector('#pf-label').value) ? 'Names can’t contain { or }.' : 'Give the field a name.');
+    const choices = form.querySelector('#pf-choices').value.split('\n').map((c) => c.trim()).filter(Boolean);
+    if (list && !choices.length) return fail('Add at least one choice, one per line.');
+    const key = name.toLowerCase();
+    const renaming = editing && key !== label.toLowerCase();
+    if (renaming && ((m.fields || []).some((f) => f.label.toLowerCase() === key) || fieldLabels(ta.value).some((l) => l.toLowerCase() === key))) {
+      return fail('Another field already has that name.');
+    }
+    // Adding a name that's already here reuses that field: one answer, used
+    // in both places.
+    const dflt = form.querySelector('#pf-default').value.trim();
+    const next = { label: name, ...(list ? { choices } : dflt ? { default: dflt } : {}) };
+    const drop = [key, editing ? label.toLowerCase() : key];
+    m.fields = [...(m.fields || []).filter((f) => !drop.includes(f.label.toLowerCase())), next];
+    closePopover();
+    if (editing) {
+      if (name !== label) replaceRange(ta, 0, ta.value.length, renameFieldInContent(ta.value, label, name));
+      else { scheduleSave(); updateEditorMeta(); ta.focus(); }
+    } else {
+      replaceRange(ta, a, b, fieldToken(name));
+    }
+  });
+  openPopover(anchor, form, { align: editing ? 'left' : 'right' });
+}
+
+// The fill-in form in a sheet, for Try it. Resolves with the answers, or null.
+function askFields(macro) {
+  return new Promise((resolve) => {
+    const sheet = h(`
+      <div class="sheet-backdrop" role="dialog" aria-modal="true">
+        <div class="sheet fill-sheet">
+          <h2>${esc(macro.title || 'Untitled')}</h2>
+          <div class="fill-host"></div>
+          <div class="fill-preview-body expansion" id="ask-preview"></div>
+          <div class="sheet-actions"><button class="btn" data-cancel>Cancel</button><button class="btn primary" data-ok>Insert</button></div>
+        </div>
+      </div>`);
+    let seq = 0;
+    const preview = async (values) => {
+      const n = ++seq;
+      const { html } = await api.previewTemplate(macro.content, { format: macro.format, values, chips: true });
+      if (n === seq) sheet.querySelector('#ask-preview').innerHTML = html;
+    };
+    const done = (values) => { sheet.remove(); resolve(values); };
+    const form = createFillForm({ macro, memory: state.fieldMemory || {}, onChange: preview, onSubmit: done, onCancel: () => done(null) });
+    sheet.querySelector('.fill-host').append(form.el);
+    sheet.querySelector('[data-cancel]').addEventListener('click', () => done(null));
+    sheet.querySelector('[data-ok]').addEventListener('click', () => done(form.values()));
+    sheet.addEventListener('mousedown', (e) => { if (e.target === sheet) done(null); });
+    document.body.append(sheet);
+    preview(form.values());
+    form.focus();
+  });
+}
+
 async function newMacro(inFolder) {
   if (state.view === 'editor' && saveTimer) await flushSave();
   const s = state.macros.snippets;
@@ -729,11 +1038,7 @@ async function newMacro(inFolder) {
 }
 
 async function copyExpansion() {
-  const m = state.macros.snippets[state.selected];
-  if (!m) return;
-  const { text } = await api.previewTemplate(m.content);
-  await navigator.clipboard.writeText(text);
-  toast('Copied to clipboard');
+  await copyMacroText(state.selected);
 }
 
 // ---- Built-ins -------------------------------------------------------------
@@ -1089,6 +1394,7 @@ document.addEventListener('keydown', (e) => {
   if (mod && e.key === 'Backspace' && state.view === 'editor' && !isTyping()) { e.preventDefault(); deleteMacro(); return; }
 
   if (e.key === 'Escape') {
+    if (popoverCleanup) { closePopover(true); return; }
     if (!el.menu.classList.contains('hidden')) { closeMenu(); return; }
     if (isTyping()) { document.activeElement.blur(); return; }
     if (state.view !== 'overview') go('overview');
@@ -1119,6 +1425,7 @@ document.addEventListener('keydown', (e) => {
     update: s.update,
     builtIns: s.builtIns,
     tokens: s.tokens,
+    fieldMemory: s.fieldMemory || {},
   });
   document.body.classList.add(IS_MAC() ? 'mac' : 'win');
   updateSearchKbd();

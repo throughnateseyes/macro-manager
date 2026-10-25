@@ -77,7 +77,7 @@ function macroCard(i, last) {
         <span class="card-title${m.title ? '' : ' untitled'}">${esc(m.title || 'Untitled')}</span>
         ${m.abbr ? `<span class="chip">${esc(state.macros.prefix + m.abbr)}</span>` : ''}
       </span>
-      <span class="card-body">${esc(m.content.trim()) || '<em>Empty</em>'}</span>
+      <span class="card-body">${esc(readableText(m).trim()) || '<em>Empty</em>'}</span>
       <span class="card-meta">
         <span>${uses ? `${uses.toLocaleString()} use${uses === 1 ? '' : 's'}` : 'Not used yet'}</span>
         ${when ? `<span>${esc(timeAgo(when))}</span>` : ''}

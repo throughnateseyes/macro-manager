@@ -5,8 +5,10 @@ const {
 const path = require('path');
 const fs = require('fs');
 const { createStore } = require('./lib/store');
-const { createExpander } = require('./lib/expander');
-const { BUILT_INS, TOKENS, expandTemplate } = require('./lib/placeholders');
+const { createExpander, writeExpansion } = require('./lib/expander');
+const { BUILT_INS, TOKENS } = require('./lib/placeholders');
+const { renderExpansion } = require('./lib/format');
+const { fieldsFor } = require('./lib/fields');
 
 const IS_MAC = process.platform === 'darwin';
 const IS_WIN = process.platform === 'win32';
@@ -51,6 +53,7 @@ const expander = createExpander({
   // The smoke test types into the app on purpose.
   isAppFocused: () => !SMOKE_TEST && BrowserWindow.getFocusedWindow() !== null,
   onExpanded: (event) => recordUse(event),
+  onNeedsFields: ({ macro, deleteCount }) => openFill(macro, { deleteCount }),
 });
 
 function recordUse(event) {
@@ -231,13 +234,21 @@ let paletteOpenedFromApp = false;
 // mode 'app'    — opened over Macro Manager's own window: Enter opens the macro.
 // mode 'tray'   — opened from the Windows tray icon: the taskbar has focus,
 //                 so Enter copies instead and the window sits by the clock.
-function showPalette(mode = 'insert') {
+// mode 'fill'   — the fill-in prompt for one macro (`fill`: { macro, action }).
+function showPalette(mode = 'insert', fill = null) {
   if (!paletteWindow || paletteWindow.isDestroyed()) createPalette();
-  if (paletteWindow.isVisible()) { hidePalette(); return; }
-  paletteOpenedFromApp = Boolean(mainWindow && mainWindow.isFocused());
+  if (paletteWindow.isVisible()) {
+    if (mode !== 'fill') { hidePalette(); return; }
+  } else {
+    paletteOpenedFromApp = Boolean(mainWindow && mainWindow.isFocused());
+  }
   // Opened over Macro Manager itself there's nothing to paste into, so Enter
   // opens the macro instead.
   if (mode === 'insert' && paletteOpenedFromApp) mode = 'app';
+  // The prompt opens from the keyboard hook, not a registered shortcut, and
+  // Windows won't hand focus to a background window that merely asks. A
+  // window being restored from minimized does get it.
+  if (IS_WIN && mode === 'fill' && !paletteWindow.isVisible()) paletteWindow.minimize();
   if (paletteWindow.isMinimized()) paletteWindow.restore();
 
   const [w, h] = paletteWindow.getSize();
@@ -256,13 +267,50 @@ function showPalette(mode = 'insert') {
       Math.round(workArea.y + workArea.height * 0.22),
     );
   }
-  paletteWindow.webContents.send('palette:open', { mode });
+  paletteWindow.webContents.send('palette:open', { mode, fill });
   paletteWindow.show();
   paletteWindow.focus();
+  if (IS_MAC && mode === 'fill') app.focus({ steal: true });
+}
+
+// ---------------------------------------------------------------------------
+// Fill-in fields
+// ---------------------------------------------------------------------------
+// The macro whose prompt is open, and what to do once it's filled in:
+// action 'paste' erases `deleteCount` typed characters and pastes; 'copy'
+// copies (tray menu, where no app has a caret).
+let pendingFill = null;
+
+function openFill(macro, { deleteCount = 0, action = 'paste' } = {}) {
+  const snapshot = { title: macro.title, abbr: macro.abbr, content: macro.content, format: macro.format, fields: macro.fields };
+  showPalette('fill', { macro: snapshot, action });
+  pendingFill = { macro: snapshot, deleteCount, action };
+}
+
+// Paste a macro into the app the user came from, once the palette is gone.
+function pasteMacro(macro, { deleteCount = 0, values } = {}) {
+  hidePalette();
+  if (values) store.rememberFields(fieldsFor(macro), values);
+  // Wait for focus to land back in the previous app before pasting.
+  setTimeout(() => {
+    expander.paste(String(macro.content ?? ''), deleteCount, { format: macro.format, values })
+      .then((chars) => recordUse({ abbr: macro.abbr || null, chars }))
+      .catch((err) => console.error('[palette] insert failed:', err));
+  }, IS_MAC ? 180 : 140);
+}
+
+// Copy a macro's expansion (both flavours for a formatted one).
+async function copyMacro(macro, values, { remember = true } = {}) {
+  const current = await clipboard.readText().catch(() => '');
+  const out = renderExpansion(String(macro.content ?? ''), { format: macro.format, values, clipboard: current });
+  await writeExpansion(out);
+  if (values && remember) store.rememberFields(fieldsFor(macro), values);
+  return out;
 }
 
 // Hide the palette and hand focus back to the app the user was typing in.
 function hidePalette() {
+  pendingFill = null;
   if (!paletteWindow || paletteWindow.isDestroyed() || !paletteWindow.isVisible()) return;
   if (IS_WIN) paletteWindow.minimize();
   paletteWindow.hide();
@@ -326,11 +374,11 @@ function prettyAccel(accel) {
 }
 
 // Copy a macro's expansion from the tray — no app has text focus while a tray
-// menu is open, so pasting directly isn't reliable there.
-async function copyFromTray(m) {
-  const current = await clipboard.readText().catch(() => '');
-  const { text } = expandTemplate(m.content, { clipboard: current });
-  await clipboard.writeText(text);
+// menu is open, so pasting directly isn't reliable there. A macro with fields
+// asks for them first.
+async function copyFromTray(m, values) {
+  if (!values && fieldsFor(m).length) { openFill(m, { action: 'copy' }); return; }
+  const { text } = await copyMacro(m, values);
   recordUse({ abbr: m.abbr, chars: Array.from(text).length });
   if (Notification.isSupported()) {
     new Notification({ title: `Copied “${m.title || m.abbr}”`, body: `Paste it with ${IS_MAC ? '⌘V' : 'Ctrl+V'}.`, silent: true }).show();
@@ -611,6 +659,7 @@ ipcMain.handle('app:state', () => ({
   update: updateState,
   builtIns: BUILT_INS,
   tokens: TOKENS,
+  fieldMemory: store.loadFieldMemory(),
 }));
 
 ipcMain.handle('macros:save', (e, data) => {
@@ -623,7 +672,16 @@ ipcMain.handle('macros:save', (e, data) => {
 ipcMain.handle('usage:rename', (_e, from, to) => store.renameUsage(String(from), String(to)));
 ipcMain.handle('usage:delete', (_e, abbr) => store.deleteUsage(String(abbr)));
 
-ipcMain.handle('template:preview', (_e, content) => expandTemplate(String(content ?? ''), { clipboard: '[clipboard]' }));
+// Previews: { text, html, cursorBack }. `opts` may carry format, values, and
+// chips/caret for the editor's preview card.
+ipcMain.handle('template:preview', (_e, content, opts = {}) =>
+  renderExpansion(String(content ?? ''), { ...(opts || {}), clipboard: '[clipboard]' }));
+// Copy a macro the way it would paste. `remember` saves the answers as
+// suggestions (only for answers someone actually typed in the prompt).
+ipcMain.handle('expansion:copy', async (_e, { content, format, fields, values, remember } = {}) => {
+  const { text } = await copyMacro({ content, format, fields }, values || undefined, { remember: Boolean(remember) });
+  return { text };
+});
 
 ipcMain.handle('settings:set', (_e, patch) => applySettings(patch || {}));
 
@@ -674,15 +732,22 @@ ipcMain.handle('app:requestAccessibility', () => {
 ipcMain.handle('app:showPalette', () => showPalette('insert'));
 ipcMain.handle('menu:popup', (e, items) => popupMenu(BrowserWindow.fromWebContents(e.sender), Array.isArray(items) ? items : []));
 
-// Palette → insert a macro into whatever app was focused before.
-ipcMain.handle('palette:insert', (_e, { content, abbr }) => {
-  hidePalette();
-  // Wait for focus to land back in the previous app before pasting.
-  setTimeout(() => {
-    expander.paste(String(content ?? ''))
-      .then((chars) => recordUse({ abbr: abbr || null, chars }))
-      .catch((err) => console.error('[palette] insert failed:', err));
-  }, IS_MAC ? 180 : 140);
+// Palette → insert a macro into whatever app was focused before. `values`
+// are the fill-in answers when it has fields.
+ipcMain.handle('palette:insert', (_e, { content, abbr, format, fields, values }) => {
+  pasteMacro({ content, abbr, format, fields }, { values: values || undefined });
+});
+// The fill-in prompt was submitted for the macro main asked about.
+ipcMain.handle('palette:fill', async (_e, values) => {
+  if (!pendingFill) return;
+  const { macro, deleteCount, action } = pendingFill;
+  pendingFill = null;
+  if (action === 'copy') {
+    hidePalette();
+    await copyFromTray(macro, values || {}).catch((err) => console.error('[tray] copy failed:', err));
+    return;
+  }
+  pasteMacro(macro, { deleteCount, values: values || {} });
 });
 ipcMain.handle('palette:copied', (_e, { abbr, chars }) => {
   recordUse({ abbr: abbr || null, chars: Number(chars) || 0 });
@@ -771,6 +836,14 @@ async function captureScreens(dir) {
   await wait(1000);
   await snap(paletteWindow, '9-quick-insert');
   hidePalette();
+  const withFields = macros.snippets.find((m) => fieldsFor(m).length);
+  if (withFields) {
+    await wait(400);
+    openFill(withFields, { action: 'copy' });
+    await wait(1000);
+    await snap(paletteWindow, '11-fill-in');
+    hidePalette();
+  }
   if (IS_WIN) {
     await wait(400);
     showPalette('tray');
@@ -826,18 +899,84 @@ function runSmokeTest() {
     // The expansion must be recorded and the clipboard put back exactly.
     const { uIOhook, UiohookKey: K } = require('uiohook-napi');
     uIOhook.keyTap = () => {};
-    macros = { prefix: '/', snippets: [{ title: 'Smoke', abbr: 'smoke', content: 'Smoke test {date}' }] };
-    const sentinel = `smoke-${Date.now()}`;
+    macros = { prefix: '/', snippets: [
+      { title: 'Smoke', abbr: 'smoke', content: 'Smoke test {date}' },
+      { title: 'Rich', abbr: 'smokerich', format: 'rich', content: '**Bold** and [a link](https://example.com)' },
+      { title: 'Fill', abbr: 'smokefill', content: 'Hi {field:Name}, unit {field:Unit}', fields: [{ label: 'Unit', choices: ['2A', '4B'] }] },
+    ] };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const type = (word) => {
+      for (const ch of `/${word} `) {
+        const code = ch === '/' ? K.Slash : ch === ' ' ? K.Space : K[ch.toUpperCase()];
+        uIOhook.emit('keydown', { keycode: code, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false });
+      }
+    };
+    // The expansion sits on the clipboard for a few hundred ms before the
+    // user's clipboard comes back: catch it there.
+    const catchPaste = async (sentinel) => {
+      for (let t = 0; t < 60; t++) {
+        const text = await clipboard.readText().catch(() => '');
+        if (text && text !== sentinel) {
+          const types = (await clipboard.read().catch(() => [])).flatMap((i) => i.types);
+          const html = types.includes('text/html') ? await (await (await clipboard.read())[0].getType('text/html')).text() : null;
+          return { text, html };
+        }
+        await sleep(10);
+      }
+      return null;
+    };
+    const uses = (abbr) => store.loadUsage()[abbr] || 0;
+
+    // 1. A plain, field-free macro: text only, exactly as in 2.1.
+    let sentinel = `smoke-${Date.now()}`;
     await clipboard.writeText(sentinel);
-    for (const code of [K.Slash, K.S, K.M, K.O, K.K, K.E, K.Space]) {
-      uIOhook.emit('keydown', { keycode: code, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false });
-    }
-    await new Promise((r) => setTimeout(r, 2000));
-    const recorded = store.loadUsage().smoke || 0;
-    const restored = await clipboard.readText();
-    if (recorded !== 1) return fail(`expansion wasn't recorded (smoke count ${recorded})`);
-    if (restored !== sentinel) return fail(`clipboard not restored (got "${restored.slice(0, 40)}")`);
-    console.log('[smoke] expansion pasted, recorded, and clipboard restored');
+    type('smoke');
+    const plain = await catchPaste(sentinel);
+    await sleep(2000);
+    if (!plain || !plain.text.startsWith('Smoke test ')) return fail(`plain expansion not on the clipboard (got ${JSON.stringify(plain)})`);
+    if (plain.html) return fail('a plain macro put HTML on the clipboard');
+    if (uses('smoke') !== 1) return fail(`expansion wasn't recorded (smoke count ${uses('smoke')})`);
+    if (await clipboard.readText() !== sentinel) return fail('clipboard not restored after the plain expansion');
+    console.log('[smoke] plain expansion pasted as text, recorded, and clipboard restored');
+
+    // 2. A formatted macro: one clipboard item with both flavours.
+    sentinel = `smoke-rich-${Date.now()}`;
+    await clipboard.writeText(sentinel);
+    type('smokerich');
+    const rich = await catchPaste(sentinel);
+    await sleep(2000);
+    if (!rich || rich.text !== 'Bold and a link (https://example.com)') return fail(`rich expansion text wrong (got ${JSON.stringify(rich)})`);
+    if (!rich.html || !rich.html.includes('<strong>Bold</strong>') || !rich.html.includes('href="https://example.com"')) return fail(`no HTML flavour (got ${JSON.stringify(rich.html)})`);
+    if (uses('smokerich') !== 1) return fail('rich expansion not recorded');
+    if (await clipboard.readText() !== sentinel) return fail('clipboard not restored after the rich expansion');
+    console.log('[smoke] formatted expansion pasted with text/plain and text/html, clipboard restored');
+
+    // 3. A macro with fields: the prompt opens and nothing is pasted until
+    //    it's filled in; Esc leaves everything alone.
+    const promptShown = () => paletteWindow.isVisible() && paletteWindow.webContents.executeJavaScript("!document.getElementById('fill').classList.contains('hidden') && !!document.getElementById('fill-0')");
+    const waitFor = async (check) => { for (let t = 0; t < 100; t++) { if (await check()) return true; await sleep(30); } return false; };
+    sentinel = `smoke-fill-${Date.now()}`;
+    await clipboard.writeText(sentinel);
+    type('smokefill');
+    if (!await waitFor(promptShown)) return fail('fill-in prompt did not open');
+    await paletteWindow.webContents.executeJavaScript("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+    await sleep(600);
+    if (paletteWindow.isVisible() || uses('smokefill') || await clipboard.readText() !== sentinel) return fail('Esc in the prompt did not leave everything alone');
+    type('smokefill');
+    if (!await waitFor(promptShown)) return fail('fill-in prompt did not reopen');
+    await paletteWindow.webContents.executeJavaScript(`(() => {
+      const i = document.getElementById('fill-0');
+      i.value = 'Jane'; i.dispatchEvent(new Event('input'));
+      i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    })()`);
+    const filled = await catchPaste(sentinel);
+    await sleep(2000);
+    if (!filled || filled.text !== 'Hi Jane, unit 2A') return fail(`fill-in expansion wrong (got ${JSON.stringify(filled)})`);
+    if (uses('smokefill') !== 1) return fail('fill-in expansion not recorded');
+    if (await clipboard.readText() !== sentinel) return fail('clipboard not restored after the fill-in expansion');
+    if (!(store.loadFieldMemory().name || []).includes('Jane')) return fail('fill-in answer not remembered');
+    console.log('[smoke] fill-in prompt opened, Esc left it alone, Enter pasted the answers');
+
     console.log(`[smoke] OK — v${app.getVersion()} on ${process.platform}`);
     app.exit(0);
   });
