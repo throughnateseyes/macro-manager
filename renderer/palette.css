@@ -75,3 +75,19 @@ body.win .palette { border-radius: 0; border: 1px solid var(--border-2); }
 .open-btn { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--accent-text); padding: 4px 8px; border-radius: 6px; }
 .open-btn:hover { background: var(--accent-soft); }
 .result .pin { color: var(--orange); font-size: 11px; }
+
+/* ---- Fill-in prompt: the same window, one row per field ---- */
+.fill { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.fill-head {
+  display: flex; align-items: center; gap: 10px;
+  height: 56px; flex-shrink: 0;
+  padding: 0 18px;
+  border-bottom: 0.5px solid var(--border);
+}
+.fill-title { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fill-head .chip { background: transparent; border-color: var(--border-2); }
+.fill-fields { flex-shrink: 0; max-height: 58%; overflow-y: auto; padding: 10px 18px 4px; }
+.fill-preview { flex: 1; min-height: 0; overflow-y: auto; margin: 8px 18px 14px; padding: 10px 12px; border-radius: var(--radius); background: var(--surface); }
+body.mac:not(.solid) .fill-preview { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.fill-preview-label { font-size: 11px; font-weight: 600; color: var(--text-3); margin-bottom: 4px; }
+.fill-preview-body { font-size: 13px; line-height: 1.55; word-break: break-word; -webkit-user-select: text; user-select: text; }

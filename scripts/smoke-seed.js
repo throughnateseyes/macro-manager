@@ -10,7 +10,11 @@ fs.mkdirSync(dir, { recursive: true });
 
 const snippets = [
   { title: 'Email Signature', abbr: 'sig', content: 'Best,\nAlex Rivera\nLeasing Team', pinned: true },
-  { title: 'Tour Confirmation', abbr: 'tour', content: 'Thanks for scheduling a tour on {date+2}! Parking is available on the street.', folder: 'Leasing', pinned: true },
+  {
+    title: 'Tour Confirmation', abbr: 'tour', folder: 'Leasing', pinned: true, format: 'rich',
+    content: 'Hi {field:Resident name},\n\nThanks for booking a tour of **unit {field:Unit}** on {date+2}. A few things before you come:\n\n- Street parking is free after 6 pm\n- Bring a photo ID\n- [Directions to the leasing office](https://maps.example.com/leasing)\n\nSee you then,\n{field:Agent}',
+    fields: [{ label: 'Unit', choices: ['2A', '4B', '7C', '12F'] }, { label: 'Agent', default: 'Alex' }],
+  },
   { title: 'Follow-up', abbr: 'fu', content: 'Hi {cursor}, just following up on my last note. Let me know if you have any questions!' },
   { title: 'Application Received', abbr: 'app', content: 'We received your application on {date} and will be in touch within 2 business days.', folder: 'Leasing' },
   { title: 'Office Address', abbr: 'addr', content: '123 Market St, Suite 400\nSan Francisco, CA 94103', folder: 'Leasing' },

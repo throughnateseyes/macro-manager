@@ -46,7 +46,7 @@ October 2026. This covers everything found in the v1 code, release setup, and UI
 | # | Finding | Sev | v2 |
 |---|---|---|---|
 | 4.1 | Edits were lost unless you clicked **Save**. There was no unsaved-changes warning. | High | Autosave with a "Saved" indicator. |
-| 4.2 | The Bold/Italic/Underline buttons did nothing: content was saved as plain text. | Med | Removed. Replaced with an **Insert** menu for placeholders. |
+| 4.2 | The Bold/Italic/Underline buttons did nothing: content was saved as plain text. | Med | Removed. Replaced with an **Insert** menu for placeholders. 2.2 brings formatting back, with the data model written first: see §11. |
 | 4.3 | The Copy button crashed on click (it referenced a missing element). | Med | Fixed. Copy now copies the filled-in expansion. |
 | 4.4 | Duplicate or invalid abbreviations were accepted with no warning. | Med | Inline warnings, plus a dot on the macro in the sidebar. |
 | 4.5 | You couldn't search a macro by name from another app. | Med | **Quick Insert** (`⌘⇧Space` / `Ctrl+Alt+Space`) searches all macros and pastes the one you pick. |
@@ -107,7 +107,7 @@ Things noticed while building 2.x for people who answer the same questions all d
 - **Enter sends messages in chat apps.** In Teams or Slack, ending an abbreviation with Enter sends the abbreviation before Macro Manager can replace it. Teach Space or Tab, or add an "expand immediately" option for chat.
 - **Programs run as administrator are out of reach.** Windows doesn't let a normal app type into an elevated one. Worth a line in the README if someone's property-management software runs that way.
 - **Remote desktop and Citrix** sessions often don't receive pasted keystrokes the way local apps do. That needs testing before telling a team it works there.
-- **Most replies are the same message with one or two details changed** (a name, a unit, a date). Fill-in fields and pick-lists would let one macro replace a folder of near-duplicates.
+- **Most replies are the same message with one or two details changed** (a name, a unit, a date). Fill-in fields and pick-lists would let one macro replace a folder of near-duplicates. *Done in 2.2 (§11).*
 - **Macros contain personal details** (addresses, phone numbers, signatures). Keeping everything on the device is a feature worth stating plainly, especially once it's open source.
 - **People switch from TextExpander.** An importer for its CSV export would make switching a one-click move.
 
@@ -131,4 +131,25 @@ Until 2.2 every count was per-computer, so there was no way to say how much typi
 - **Windows code signing**: removes the SmartScreen "unknown publisher" prompt. Azure Trusted Signing costs about $10/mo.
 - **Team stats**: the backend now exists (section 10), but it only knows everyone's total. Per-team totals need a team code. See [RELEASING.md](RELEASING.md#team-stats-next).
 - **Non-US keyboard layouts**: abbreviations assume US key positions for symbols.
-- **Fill-in fields** (prompt for a name when expanding): a common request in paid expanders.
+- **Expand immediately** (for Teams/Slack, where Enter sends): a per-macro "expand as soon as it's typed" option. About a day: the key buffer needs a no-terminator match, and it has to refuse abbreviations that are the start of another (`/sig` vs `/sign`).
+- **Per-app rules** (always paste plain into terminals, never expand in one app): a few days. Needs the frontmost app's name on both OSes (a native module or a shell-out per expansion) and a small rules screen. With 2.2's two-flavour paste, terminals already take the plain text, so the urgent half is solved.
+- **TextExpander CSV importer**: about half a day. Its group export is a CSV of abbreviation, content and label. Map its clipboard, cursor and fill-in codes (`%clipboard`, `%|`, `%filltext:…%`, `%fillpopup:…%`) onto `{clipboard}`, `{cursor}` and `{field:…}` with choices, and skip script snippets. Needs a real export to test against.
+
+## 11. Formatted expansions and fill-in fields (2.2)
+
+The lesson of §4.2 was that the toolbar shipped before the data could hold what it promised. This time the format came first: [MACRO-FORMAT.md](MACRO-FORMAT.md) was written before any UI, and every control writes into it.
+
+- **Storage stays text.** A formatted macro keeps plain `content` in a small Markdown subset, flagged `format: "rich"`. Existing macros are never converted, and older builds still read the file.
+- **One renderer** (`lib/format.js`) turns a macro into both an HTML and a plain-text version. Placeholders are resolved inside the parsed text, so a `*` in your clipboard can't become italics and a `<` in a name is escaped. The HTML carries no fonts or colours, so it takes the email's own font.
+- **One paste, two flavours.** A formatted macro goes on the clipboard as one item with `text/html` and `text/plain`, through the same async clipboard API the snapshot uses (§7). Each app takes what it understands; there is no setting. Plain macros paste text only, exactly as before.
+- **Fill-in fields** are `{field:Name}` tokens, with optional defaults and pick-lists stored on the macro. The prompt reuses the Quick Insert window and its "paste back where you were" focus handling. Nothing is erased until you press Enter, so Esc leaves the abbreviation as typed. Answers are remembered on this device as suggestions, never pre-filled.
+
+| Checked | How |
+|---|---|
+| Renderer and fields | `test/format.test.js`, `test/fields.test.js`: escaping, link schemes, lists, `{cursor}` counts, field merging and cleaning |
+| Real app, Mac | The CI smoke test types three macros through the real hook: a plain one (text only, clipboard restored), a formatted one (both flavours on the clipboard), and one with fields (prompt opens, Esc leaves everything alone, Enter pastes the answers). Runs on Windows and macOS before every release. |
+| How Cocoa apps read it | The HTML flavour run through macOS's own HTML importer (what TextEdit and Apple Mail use): bold, italics, list, link and blank lines all survive |
+| How web editors read it | Inserted mid-sentence in a browser rich-text editor (how Gmail and Zendesk paste): joins the line, takes the editor's font, no stray blank lines |
+| **Needs a hand test** | Outlook on Windows (classic and new), the Zendesk agent composer, Teams (desktop), Apple Mail's font for unstyled pasted HTML, and that the fill-in prompt takes focus when it opens from a typed abbreviation on Windows |
+
+Known limit: in a formatted macro, `{cursor}` is counted against what a rich-text app shows. If it sits above a list, a plain-text app may put the caret a couple of characters off per list item.

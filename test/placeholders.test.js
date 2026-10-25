@@ -32,3 +32,8 @@ test('built-ins resolve', () => {
   assert.strictEqual(resolveBuiltIn('ts', now), 'October 24, 2026 2:05 PM');
   assert.strictEqual(resolveBuiltIn('nope', now), null);
 });
+
+test('{field:…} takes its answer; with none it is empty', () => {
+  assert.strictEqual(expandTemplate('Hi {field:Resident  name}!', { now, values: { 'resident name': 'Jane' } }).text, 'Hi Jane!');
+  assert.strictEqual(expandTemplate('Hi {field:Name}!', { now }).text, 'Hi !');
+});

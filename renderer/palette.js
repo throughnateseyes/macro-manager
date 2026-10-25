@@ -5,10 +5,14 @@ const api = window.macroAPI;
 const q = document.getElementById('q');
 const results = document.getElementById('results');
 
-let state = { macros: { prefix: '/', snippets: [] }, usage: {}, builtIns: [], stats: { lifetime: 0, days: {} }, today: '' };
+let state = { macros: { prefix: '/', snippets: [] }, usage: {}, builtIns: [], stats: { lifetime: 0, days: {} }, today: '', fieldMemory: {} };
 let items = [];
 let active = 0;
 let mode = 'insert'; // 'insert' pastes into the previous app, 'tray' copies, 'app' opens the macro
+// While the fill-in prompt shows: { macro, action: 'insert' | 'copy', fromList }.
+// fromList: picked here in Quick Insert (Esc goes back to the list) rather
+// than typed in another app (Esc closes and leaves the typing alone).
+let fill = null;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const oneLine = (s) => String(s || '').replace(/\s+/g, ' ').trim();
@@ -130,7 +134,7 @@ function render() {
     row.innerHTML = `
       <div class="main">
         <div class="title">${esc(it.title || 'Untitled')}${it.pinned ? ' <span class="pin">●</span>' : ''}</div>
-        <div class="sub">${esc(it.builtIn ? it.sub : oneLine(it.content).slice(0, 120))}</div>
+        <div class="sub">${esc(it.builtIn ? it.sub : oneLine(readableText(it)).slice(0, 120))}</div>
       </div>
       ${when}<span class="chip">${esc(state.macros.prefix + it.abbr)}</span>`;
     row.addEventListener('mousemove', () => { if (active !== i) { active = i; paintActive(); } });
@@ -160,7 +164,8 @@ function insert(i = active) {
   if (!it) return;
   if (mode === 'tray') return copy(i);
   if (mode === 'app') return it.builtIn ? copy(i) : api.paletteOpenMacro(it.index);
-  api.paletteInsert({ content: it.content, abbr: it.builtIn ? null : it.abbr });
+  if (!it.builtIn && fieldsFor(it).length) return showFill(it, { action: 'insert', fromList: true });
+  api.paletteInsert({ content: it.content, abbr: it.builtIn ? null : it.abbr, format: it.format });
 }
 
 // Right-click a result: the same verbs as the footer, plus pinning.
@@ -195,10 +200,55 @@ async function resultMenu(i, e) {
 async function copy(i = active) {
   const it = items[i];
   if (!it) return;
-  const { text } = await api.previewTemplate(it.content);
-  await navigator.clipboard.writeText(text);
-  api.paletteCopied({ abbr: it.builtIn ? null : it.abbr, chars: Array.from(text).length });
+  if (!it.builtIn && fieldsFor(it).length) return showFill(it, { action: 'copy', fromList: true });
+  await copyMacro(it);
+}
+
+// Both flavours for a formatted macro, like a paste.
+async function copyMacro(m, values) {
+  const { text } = await api.copyExpansion({ content: m.content, format: m.format, fields: m.fields, values, remember: Boolean(values) });
+  api.paletteCopied({ abbr: m.builtIn ? null : m.abbr, chars: Array.from(text).length });
   api.paletteClose();
+}
+
+// ---- Fill-in prompt ----------------------------------------------------------
+let previewSeq = 0;
+async function showFillPreview(values) {
+  const seq = ++previewSeq;
+  const { html } = await api.previewTemplate(fill.macro.content, { format: fill.macro.format, values, chips: true });
+  if (seq === previewSeq) document.getElementById('fill-preview').innerHTML = html;
+}
+
+function showFill(macro, { action, fromList }) {
+  fill = { macro, action, fromList };
+  const form = createFillForm({
+    macro,
+    memory: state.fieldMemory,
+    onChange: showFillPreview,
+    onSubmit: submitFill,
+    onCancel: cancelFill,
+  });
+  document.getElementById('fill-title').textContent = macro.title || 'Untitled';
+  document.getElementById('fill-abbr').textContent = state.macros.prefix + macro.abbr;
+  document.getElementById('fill-fields').replaceChildren(form.el);
+  renderMode();
+  showFillPreview(form.values());
+  form.focus();
+}
+
+async function submitFill(values) {
+  const { macro, action, fromList } = fill;
+  if (!fromList) return api.paletteFill(values);
+  if (action === 'copy') return copyMacro(macro, values);
+  api.paletteInsert({ content: macro.content, abbr: macro.abbr, format: macro.format, fields: macro.fields, values });
+}
+
+function cancelFill() {
+  const back = fill && fill.fromList;
+  fill = null;
+  if (!back) { api.paletteClose(); return; }
+  renderMode();
+  q.focus();
 }
 
 function dayKey(d) {
@@ -215,9 +265,20 @@ function streak() {
 }
 
 function renderMode() {
-  const tray = mode === 'tray';
+  const tray = mode === 'tray' && !fill;
   document.getElementById('tray-head').classList.toggle('hidden', !tray);
-  document.getElementById('enter-label').textContent = tray ? 'Copy' : mode === 'app' ? 'Open' : 'Insert';
+  document.querySelector('.field').classList.toggle('hidden', Boolean(fill));
+  results.classList.toggle('hidden', Boolean(fill));
+  document.getElementById('fill').classList.toggle('hidden', !fill);
+  document.getElementById('edit-hint').classList.toggle('hidden', Boolean(fill));
+  document.getElementById('tab-hint').classList.toggle('hidden', !fill);
+  document.getElementById('esc-label').textContent = !fill ? 'Close' : fill.fromList ? 'Back' : 'Cancel';
+  if (fill) {
+    document.getElementById('enter-label').textContent = fill.action === 'copy' ? 'Copy' : 'Insert';
+    document.getElementById('copy-hint').classList.add('hidden');
+    return;
+  }
+  document.getElementById('enter-label').textContent = tray || mode === 'tray' ? 'Copy' : mode === 'app' ? 'Open' : 'Insert';
   document.getElementById('copy-hint').classList.toggle('hidden', tray);
   if (tray) {
     document.getElementById('t-today').textContent = (state.stats.days[dayKey(new Date())]?.total || 0).toLocaleString();
@@ -232,6 +293,8 @@ q.addEventListener('input', build);
 
 document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
+  // The fill-in form handles its own keys; this only catches Esc elsewhere.
+  if (fill) { if (e.key === 'Escape') { e.preventDefault(); cancelFill(); } return; }
   if (e.key === 'Escape') { e.preventDefault(); api.paletteClose(); return; }
   if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) { e.preventDefault(); active = Math.min(items.length - 1, active + 1); paintActive(); return; }
   if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) { e.preventDefault(); active = Math.max(0, active - 1); paintActive(); return; }
@@ -246,7 +309,7 @@ document.addEventListener('keydown', (e) => {
 
 async function refresh() {
   const s = await api.getState();
-  state = { macros: s.macros, usage: s.usage, builtIns: s.builtIns, stats: s.stats };
+  state = { macros: s.macros, usage: s.usage, builtIns: s.builtIns, stats: s.stats, fieldMemory: s.fieldMemory || {} };
   document.body.classList.add(s.platform === 'darwin' ? 'mac' : 'win');
   if (s.platform !== 'darwin') {
     document.getElementById('k-copy').textContent = 'Ctrl+C';
@@ -256,10 +319,16 @@ async function refresh() {
 
 api.onPaletteOpen(async (opts) => {
   mode = opts?.mode || 'insert';
+  fill = null;
   await refresh();
-  renderMode();
   q.value = '';
   build();
+  // A macro with fields was typed in another app: straight to its prompt.
+  if (mode === 'fill' && opts.fill) {
+    showFill(opts.fill.macro, { action: opts.fill.action === 'copy' ? 'copy' : 'insert', fromList: false });
+    return;
+  }
+  renderMode();
   q.focus();
 });
 api.onMacrosChanged((macros) => { state.macros = macros; });

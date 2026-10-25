@@ -119,3 +119,38 @@ kbd {
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- Fill-in fields and formatted expansions (editor preview, prompt) ---- */
+.fill-row { display: grid; grid-template-columns: 136px 1fr; align-items: center; gap: 12px; padding: 4px 0; }
+.fill-row label { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fill-row input, .fill-row select {
+  width: 100%; height: 30px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--border-2);
+  background: var(--bg);
+  font: inherit; font-size: 13.5px; color: var(--text);
+}
+.fill-row input:focus, .fill-row select:focus { border-color: var(--accent); box-shadow: var(--focus); }
+.fill-row .select { position: relative; display: block; }
+.fill-row select { -webkit-appearance: none; appearance: none; padding-right: 28px; }
+.fill-row .select::after {
+  content: ''; position: absolute; right: 12px; top: 11px;
+  width: 5px; height: 5px;
+  border-right: 1.5px solid var(--text-2); border-bottom: 1.5px solid var(--text-2);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.expansion ul, .expansion ol { padding-left: 1.5em; }
+.expansion a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.expansion strong { font-weight: 600; }
+.field-chip {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.field-chip.filled { padding: 0 2px; color: inherit; font-weight: inherit; }
