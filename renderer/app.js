@@ -74,8 +74,8 @@ const ICON = {
   braces:    '<svg class="icon" viewBox="0 0 16 16"><path d="M5.5 2.5c-1.5 0-2 .7-2 2v1.6c0 .9-.5 1.4-1.5 1.9 1 .5 1.5 1 1.5 1.9v1.6c0 1.3.5 2 2 2M10.5 2.5c1.5 0 2 .7 2 2v1.6c0 .9.5 1.4 1.5 1.9-1 .5-1.5 1-1.5 1.9v1.6c0 1.3-.5 2-2 2"/></svg>',
   shield:    '<svg class="icon" viewBox="0 0 16 16"><path d="M8 1.75 2.75 3.5v4c0 3.2 2.2 5.6 5.25 6.75 3.05-1.15 5.25-3.55 5.25-6.75v-4z"/><path d="m5.75 8 1.6 1.6 2.9-3.1"/></svg>',
   chevron:   '<svg class="icon chev" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4"/></svg>',
-  pin:       '<svg class="icon" viewBox="0 0 16 16"><path d="M9.8 2.2 13.8 6.2M11.8 4.2 8.6 7.4l-3.2-.6-1.6 1.6 3.8 3.8 1.6-1.6-.6-3.2M5.6 10.4 2.5 13.5"/></svg>',
-  pinFill:   '<svg class="icon filled" viewBox="0 0 16 16"><path d="M9.8 2.2 13.8 6.2M11.8 4.2 8.6 7.4l-3.2-.6-1.6 1.6 3.8 3.8 1.6-1.6-.6-3.2z"/><path d="M5.6 10.4 2.5 13.5"/></svg>',
+  pin:       '<svg class="icon" viewBox="0 0 16 16"><path d="M5.75 2.25h4.5M6.5 2.25v3.6L4.5 8.6v1h7v-1L9.5 5.85v-3.6M8 9.6v4.15"/></svg>',
+  pinFill:   '<svg class="icon" viewBox="0 0 16 16"><path class="fill" d="M5.75 2.25h4.5M6.5 2.25v3.6L4.5 8.6v1h7v-1L9.5 5.85v-3.6Z"/><path d="M8 9.6v4.15"/></svg>',
   flame:     '<svg class="icon" viewBox="0 0 16 16"><path d="M8 14.5c2.8 0 4.5-1.9 4.5-4.4 0-2.9-2.5-4.4-3-7.6C7.6 3.6 6.8 5.6 7 7.4 6.1 6.9 5.6 6 5.5 5 4.2 6.2 3.5 7.9 3.5 10.1c0 2.5 1.7 4.4 4.5 4.4z"/></svg>',
   trophy:    '<svg class="icon" viewBox="0 0 16 16"><path d="M5 2.5h6v3.2a3 3 0 0 1-6 0zM5 3.5H2.8c0 2 .9 3.2 2.5 3.4M11 3.5h2.2c0 2-.9 3.2-2.5 3.4M8 8.7v2.8M5.5 13.5h5"/></svg>',
   check:     '<svg class="icon check" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7"/></svg>',
@@ -319,13 +319,27 @@ function visibleOrder() {
       .sort((a, b) => b[1] - a[1] || a[0] - b[0])
       .map(([i]) => i);
   }
-  const loose = sortedIndices(s.map((_, i) => i).filter((i) => !s[i].folder));
-  const out = [...loose];
-  for (const folder of folders()) {
-    if (state.collapsed.has(folder)) continue;
-    out.push(...sortedIndices(s.map((_, i) => i).filter((i) => s[i].folder === folder)));
-  }
+  const sec = listSections();
+  const out = [];
+  if (sec.pinned.length && !state.collapsed.has(PINNED_KEY)) out.push(...sec.pinned);
+  out.push(...sec.loose);
+  for (const f of sec.folders) if (!state.collapsed.has(f.name)) out.push(...f.members);
   return out;
+}
+
+// Pinned macros sit in their own section at the top and aren't repeated in
+// their folder below.
+const PINNED_KEY = '\u0000pinned';
+function listSections() {
+  const s = state.macros.snippets;
+  const idx = s.map((_, i) => i);
+  return {
+    pinned: sortedIndices(idx.filter((i) => s[i].pinned)),
+    loose: sortedIndices(idx.filter((i) => !s[i].pinned && !s[i].folder)),
+    folders: folders()
+      .map((name) => ({ name, members: sortedIndices(idx.filter((i) => !s[i].pinned && s[i].folder === name)) }))
+      .filter((f) => f.members.length),
+  };
 }
 
 function folders() {
@@ -347,7 +361,6 @@ function macroRow(i, q) {
     <button class="macro-item${i === state.selected ? ' active' : ''}" role="option" data-index="${i}" aria-selected="${i === state.selected}">
       <div class="row">
         <span class="title${m.title ? '' : ' untitled'}">${m.title ? highlight(m.title, q) : 'Untitled'}</span>
-        ${m.pinned ? `<span class="pin-mark" title="Pinned">${ICON.pinFill}</span>` : ''}
         ${issues.warn ? '<span class="warn-dot" title="Needs attention"></span>' : ''}
         ${m.abbr ? `<span class="chip">${highlight(state.macros.prefix + m.abbr, q)}</span>` : ''}
       </div>
@@ -375,23 +388,28 @@ function renderList() {
     return;
   }
 
-  sortedIndices(s.map((_, i) => i).filter((i) => !s[i].folder)).forEach((i) => el.list.append(macroRow(i, '')));
-
-  for (const folder of folders()) {
-    const members = sortedIndices(s.map((_, i) => i).filter((i) => s[i].folder === folder));
-    const collapsed = state.collapsed.has(folder);
+  const sec = listSections();
+  const section = (key, label, members) => {
+    const collapsed = state.collapsed.has(key);
     const head = h(`
       <button class="folder-header${collapsed ? ' collapsed' : ''}">
-        ${ICON.chevron}<span>${esc(folder)}</span><span class="count">${members.length}</span>
+        ${ICON.chevron}<span>${esc(label)}</span><span class="count">${members.length}</span>
       </button>`);
     head.addEventListener('click', () => {
-      if (collapsed) state.collapsed.delete(folder); else state.collapsed.add(folder);
+      if (collapsed) state.collapsed.delete(key); else state.collapsed.add(key);
       writeLocal('collapsed', [...state.collapsed]);
       renderList();
     });
     el.list.append(head);
     if (!collapsed) members.forEach((i) => el.list.append(macroRow(i, '')));
+  };
+
+  if (sec.pinned.length) {
+    section(PINNED_KEY, 'Pinned', sec.pinned);
+    if (sec.loose.length) el.list.append(h('<div class="list-gap"></div>'));
   }
+  sec.loose.forEach((i) => el.list.append(macroRow(i, '')));
+  for (const f of sec.folders) section(f.name, f.name, f.members);
 }
 
 function moveSelection(delta) {
@@ -589,14 +607,14 @@ function renderEditor() {
 }
 
 function pinButton(m) {
-  const b = toolButton(m.pinned ? ICON.pinFill : ICON.pin, m.pinned ? 'Unpin from tray menu' : 'Pin to tray menu', async () => {
+  const b = toolButton(m.pinned ? ICON.pinFill : ICON.pin, m.pinned ? 'Unpin' : 'Pin to the top', async () => {
     if (m.pinned) delete m.pinned; else m.pinned = true;
     await flushSave();
     renderList();
     b.innerHTML = m.pinned ? ICON.pinFill : ICON.pin;
-    b.title = m.pinned ? 'Unpin from tray menu' : 'Pin to tray menu';
+    b.title = m.pinned ? 'Unpin' : 'Pin to the top';
     b.classList.toggle('on', Boolean(m.pinned));
-    toast(m.pinned ? 'Pinned to the tray menu' : 'Unpinned');
+    toast(m.pinned ? 'Pinned to the top' : 'Unpinned');
   }, m.pinned ? 'on' : '');
   return b;
 }

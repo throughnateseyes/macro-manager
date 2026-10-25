@@ -9,18 +9,9 @@ const OUT = path.join(__dirname, '..', 'docs', 'screenshots');
 const click = (text) =>
   `[...document.querySelectorAll('button')].find((b) => b.textContent.includes(${JSON.stringify(text)}))?.click()`;
 
-const direction = (k) => `localStorage.setItem('overviewDirection', '"${k}"'); location.reload();`;
-
 const SHOTS = [
-  { name: 'explore-sky-light.png', file: 'preview.html', query: 'platform=darwin&solid&busy', theme: 'light', run: direction('sky') },
-  { name: 'explore-sky-dark.png', file: 'preview.html', query: 'platform=darwin&solid&busy', theme: 'dark', run: direction('sky') },
-  { name: 'explore-lanes-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light', run: direction('lanes') },
-  { name: 'explore-lanes-dark.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'dark', run: direction('lanes') },
-  { name: 'explore-board-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light', run: direction('board') },
-  { name: 'explore-board-dark.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'dark', run: direction('board') },
-
-  { name: 'overview-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light' },
-  { name: 'overview-dark.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'dark' },
+  { name: 'overview-light.png', file: 'preview.html', query: 'platform=darwin&solid&busy', theme: 'light' },
+  { name: 'overview-dark.png', file: 'preview.html', query: 'platform=darwin&solid&busy', theme: 'dark' },
   { name: 'editor-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light', run: click('Tour Confirmation') },
   { name: 'settings-windows.png', file: 'preview.html', query: 'platform=win32&update=ready', theme: 'light', run: click('Settings') },
   { name: 'quick-insert-dark.png', file: 'palette.html', query: 'platform=darwin&solid', theme: 'dark', width: 640, height: 420 },

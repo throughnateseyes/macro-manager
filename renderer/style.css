@@ -124,6 +124,8 @@ body.win .win-brand { display: flex; }
 .folder-header.collapsed .chev { transform: rotate(-90deg); }
 .folder-header .count { margin-left: auto; font-weight: 400; }
 
+.list-gap { height: 0.5px; margin: 8px 8px; background: var(--border); }
+.folder-header:first-child { margin-top: 2px; }
 .list-empty { padding: 24px 12px; color: var(--text-3); text-align: center; font-size: 12px; line-height: 1.5; }
 
 /* ---- Sidebar footer: status + banners ---- */
@@ -177,8 +179,6 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 .page-head h1 { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
 .page-head p { margin-top: 6px; color: var(--text-2); font-size: 13.5px; line-height: 1.5; }
 
-.section-title { font-size: 13px; font-weight: 600; margin: 32px 0 10px; display: flex; align-items: center; justify-content: space-between; min-height: 28px; }
-.section-title .aside { font-weight: 400; color: var(--text-3); font-size: 12px; }
 
 /* ---- Buttons ---- */
 .btn {
@@ -200,49 +200,7 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 .btn.small { height: 24px; padding: 0 10px; font-size: 12px; }
 .btn .icon { width: 14px; height: 14px; }
 
-/* ---- Overview ---- */
-.status-line { display: inline-flex; align-items: center; gap: 8px; }
-.stats { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 12px; }
-.stat {
-  padding: 16px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-.stat .value { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.stat .label { margin-top: 2px; color: var(--text-2); font-size: 12px; }
-.stat .value small { font-size: 14px; font-weight: 600; color: var(--text-2); letter-spacing: 0; }
-.stat.lead { background: linear-gradient(135deg, var(--accent), #5e5ce6); color: #fff; }
-.stat.lead .label { color: rgba(255, 255, 255, 0.82); }
-
-/* ---- Milestones ---- */
-.milestone { margin-top: 12px; padding: 14px 16px; border-radius: var(--radius-lg); border: 0.5px solid var(--border); }
-.milestone-head { display: flex; align-items: center; gap: 10px; }
-.milestone-head .icon { width: 20px; height: 20px; color: var(--orange); }
-.milestone-head .main { display: flex; flex-direction: column; }
-.milestone-head span { color: var(--text-2); font-size: 12px; }
-.bar.big { height: 8px; border-radius: 4px; margin: 12px 0 10px; }
-.bar.big span { background: linear-gradient(90deg, var(--orange), #ff6b3d); }
-.badges { display: flex; flex-wrap: wrap; gap: 6px; }
-.badge {
-  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
-  padding: 2px 8px; border-radius: 10px;
-  color: var(--text-3); background: var(--surface);
-}
-.badge.earned { color: var(--orange); background: var(--orange-soft); }
-
-/* ---- Activity heatmap ---- */
-.heatmap-card { padding: 14px 16px 12px; border-radius: var(--radius-lg); border: 0.5px solid var(--border); }
-.heatmap { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 13px); gap: 3px; justify-content: space-between; }
-.cell { display: inline-block; aspect-ratio: 1; border-radius: 3px; background: var(--surface-2); }
-.heatmap .cell { width: 13px; height: 13px; }
-.cell.empty { background: transparent; }
-.cell.l1 { background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); }
-.cell.l2 { background: color-mix(in srgb, var(--accent) 55%, var(--surface-2)); }
-.cell.l3 { background: color-mix(in srgb, var(--accent) 78%, var(--surface-2)); }
-.cell.l4 { background: var(--accent); }
-.heatmap-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 11.5px; color: var(--text-2); }
-.legend { display: inline-flex; align-items: center; gap: 3px; }
-.legend .cell { width: 10px; height: 10px; }
+/* ---- Overview: see overview.css ---- */
 
 /* ---- Per-macro sparkline ---- */
 .prop-static.used { display: inline-flex; align-items: center; gap: 6px; }
@@ -250,48 +208,8 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 .spark span { width: 3px; border-radius: 1px; background: var(--surface-2); }
 .spark span.on { background: var(--accent); }
 
-.pin-mark .icon { width: 12px; height: 12px; color: var(--orange); }
-.icon.filled { fill: currentColor; }
+.icon .fill { fill: currentColor; }
 .icon-btn.on { color: var(--orange); }
-
-.ranked { display: flex; flex-direction: column; border-radius: var(--radius-lg); border: 0.5px solid var(--border); overflow: hidden; }
-.ranked-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 56px;
-  align-items: center; gap: 16px;
-  padding: 10px 14px;
-  text-align: left;
-  border-bottom: 0.5px solid var(--border);
-}
-.ranked-row:last-child { border-bottom: none; }
-.ranked-row:hover { background: var(--hover); }
-.ranked-row .name { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ranked-row .name span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
-.bar span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
-.ranked-row .num { text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; font-size: 12px; }
-
-.tips { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.tip {
-  padding: 16px;
-  border-radius: var(--radius-lg);
-  border: 0.5px solid var(--border);
-  display: flex; flex-direction: column; gap: 6px;
-}
-.tip .tip-head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.tip .tip-head .icon { color: var(--accent); }
-.tip p { color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
-.tip .keys { margin-top: auto; padding-top: 6px; display: flex; gap: 6px; align-items: center; }
-.keycap {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 22px; height: 22px; padding: 0 6px;
-  border-radius: 5px;
-  background: var(--raised);
-  border: 0.5px solid var(--border-2);
-  box-shadow: 0 1px 0 var(--border-2);
-  font-size: 12px;
-  color: var(--text);
-}
 
 .hero {
   margin-top: 8px;

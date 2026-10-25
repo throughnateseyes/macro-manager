@@ -1,7 +1,6 @@
 // Browser-only stand-in for preload.js so the renderer can be previewed
 // without Electron:  python3 -m http.server 5180  →  /dev/preview.html
 // Add ?platform=win32 to preview the Windows layout, ?empty to start blank.
-window.MM_DEV = true; // shows the Overview direction chooser
 (() => {
   const params = new URLSearchParams(location.search);
   // ?solid — no native vibrancy in a browser, so paint the sidebar.
