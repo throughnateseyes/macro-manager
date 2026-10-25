@@ -27,21 +27,78 @@ function score(item, query) {
   return 0;
 }
 
+const RECENT_SHOWN = 5;
+const SECTION_LABELS = { pinned: 'Pinned', recent: 'Recent', all: 'All macros', builtin: 'Date &amp; Time' };
+
+// Newest first, one entry per abbreviation (stats.json → recent).
+function recentUses() {
+  const list = Array.isArray(state.stats?.recent) ? state.stats.recent : [];
+  return list.filter((r) => r && typeof r.abbr === 'string' && Number.isFinite(r.at));
+}
+
+const byUsage = (a, b) => b.uses - a.uses || a.title.localeCompare(b.title);
+
 function build() {
   const query = q.value.trim().toLowerCase();
+  const recent = recentUses();
+  const recentRank = new Map();
+  recent.forEach((r, i) => { if (!recentRank.has(r.abbr)) recentRank.set(r.abbr, i); });
+
   const mine = state.macros.snippets
     .map((m, index) => ({ ...m, index, uses: state.usage[m.abbr] || 0 }))
     .filter((m) => m.abbr && m.content.trim());
   const builtIns = state.builtIns
     .filter((b) => !mine.some((m) => m.abbr.toLowerCase() === b.abbr))
-    .map((b) => ({ title: b.title, abbr: b.abbr, content: `{${b.abbr}}`, sub: b.desc, builtIn: true, uses: 0 }));
+    .map((b) => ({ title: b.title, abbr: b.abbr, content: `{${b.abbr}}`, sub: b.desc, builtIn: true, uses: 0, section: 'builtin' }));
 
-  items = [...mine, ...builtIns]
-    .map((it) => ({ ...it, s: score(it, query) }))
-    .filter((it) => it.s > 0)
-    .sort((a, b) => (query ? b.s - a.s : 0) || Number(a.builtIn || 0) - Number(b.builtIn || 0) || Number(b.pinned || 0) - Number(a.pinned || 0) || b.uses - a.uses || a.title.localeCompare(b.title));
+  if (query) {
+    // Ranked search. Pinned and recently used macros win ties within the same
+    // match tier; the boost (at most 5) never jumps a tier (gaps of 10+).
+    const boost = (it) => {
+      if (it.builtIn) return 0;
+      const r = recentRank.get(it.abbr);
+      return (it.pinned ? 3 : 0) + (r === undefined ? 0 : 2 * (1 - r / Math.max(recent.length, 1)));
+    };
+    items = [...mine, ...builtIns]
+      .map((it) => {
+        const s = score(it, query);
+        return { ...it, s: s && s + boost(it) };
+      })
+      .filter((it) => it.s > 0)
+      .sort((a, b) => b.s - a.s || Number(a.builtIn || 0) - Number(b.builtIn || 0) || Number(b.pinned || 0) - Number(a.pinned || 0) || byUsage(a, b));
+  } else {
+    // Empty query: Pinned, then Recent, then everything else. Each macro
+    // appears once; `active` still indexes this one flat list.
+    const pinned = mine.filter((m) => m.pinned).sort(byUsage).map((m) => ({ ...m, section: 'pinned' }));
+    const taken = new Set(pinned.map((m) => m.index));
+    const recents = [];
+    for (const r of recent) {
+      if (recents.length >= RECENT_SHOWN) break;
+      const m = mine.find((x) => x.abbr === r.abbr && !x.pinned && !taken.has(x.index));
+      if (!m) continue;
+      taken.add(m.index);
+      recents.push({ ...m, section: 'recent', at: r.at });
+    }
+    const rest = mine.filter((m) => !taken.has(m.index)).sort(byUsage).map((m) => ({ ...m, section: 'all' }));
+    items = [...pinned, ...recents, ...rest, ...builtIns];
+  }
   active = 0;
   render();
+}
+
+// Quiet relative time for the Recent section: Now, 2m, 1h, Yesterday, Oct 20.
+function ago(at, now = new Date()) {
+  const mins = Math.floor((now - at) / 60000);
+  if (mins < 1) return 'Now';
+  if (mins < 60) return `${mins}m`;
+  const then = new Date(at);
+  const hours = Math.floor(mins / 60);
+  if (hours < 6 || dayKey(then) === dayKey(now)) return `${hours}h`;
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (dayKey(then) === dayKey(yesterday)) return 'Yesterday';
+  const opts = { month: 'short', day: 'numeric' };
+  if (then.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  return then.toLocaleDateString(undefined, opts);
 }
 
 function render() {
@@ -50,21 +107,32 @@ function render() {
     results.innerHTML = `<div class="empty">${q.value.trim() ? 'No matching macros' : 'No macros yet — create one in Macro Manager.'}</div>`;
     return;
   }
+  const query = q.value.trim();
+  // With an empty query every section gets a header, except "All macros"
+  // when nothing sits above it. Search results only label the built-ins.
+  let lastSection = null;
   let shownBuiltInHeader = false;
+  const now = new Date();
   items.forEach((it, i) => {
-    if (it.builtIn && !shownBuiltInHeader && i > 0) {
-      results.insertAdjacentHTML('beforeend', '<div class="group">Date &amp; Time</div>');
+    if (!query && it.section !== lastSection && (i > 0 || it.section === 'pinned' || it.section === 'recent')) {
+      results.insertAdjacentHTML('beforeend', `<div class="group">${SECTION_LABELS[it.section]}</div>`);
+    } else if (query && it.builtIn && !shownBuiltInHeader && i > 0) {
+      results.insertAdjacentHTML('beforeend', `<div class="group">${SECTION_LABELS.builtin}</div>`);
       shownBuiltInHeader = true;
     }
+    lastSection = it.section;
     const row = document.createElement('button');
     row.className = `result${i === active ? ' active' : ''}`;
     row.setAttribute('role', 'option');
+    const when = it.section === 'recent'
+      ? `<span class="when" title="${esc(new Date(it.at).toLocaleString())}">${esc(ago(it.at, now))}</span>`
+      : '';
     row.innerHTML = `
       <div class="main">
         <div class="title">${esc(it.title || 'Untitled')}${it.pinned ? ' <span class="pin">●</span>' : ''}</div>
         <div class="sub">${esc(it.builtIn ? it.sub : oneLine(it.content).slice(0, 120))}</div>
       </div>
-      <span class="chip">${esc(state.macros.prefix + it.abbr)}</span>`;
+      ${when}<span class="chip">${esc(state.macros.prefix + it.abbr)}</span>`;
     row.addEventListener('mousemove', () => { if (active !== i) { active = i; paintActive(); } });
     row.addEventListener('click', () => insert(i));
     results.appendChild(row);
@@ -72,8 +140,18 @@ function render() {
 }
 
 function paintActive() {
-  results.querySelectorAll('.result').forEach((r, i) => r.classList.toggle('active', i === active));
-  results.querySelectorAll('.result')[active]?.scrollIntoView({ block: 'nearest' });
+  const rows = results.querySelectorAll('.result');
+  rows.forEach((r, i) => r.classList.toggle('active', i === active));
+  const row = rows[active];
+  if (!row) return;
+  if (active === 0) { results.scrollTop = 0; return; }
+  row.scrollIntoView({ block: 'nearest' });
+  // Moving up onto the first row of a section: keep its header in view too.
+  const head = row.previousElementSibling;
+  if (head?.classList.contains('group')) {
+    const above = results.getBoundingClientRect().top - head.getBoundingClientRect().top;
+    if (above > 0) results.scrollTop -= above;
+  }
 }
 
 function insert(i = active) {
