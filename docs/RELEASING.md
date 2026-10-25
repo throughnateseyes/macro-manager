@@ -93,10 +93,12 @@ The Developer ID also turns on **automatic updates for Mac** (Apple requires sig
 
 ## Team stats (next)
 
-Everything today is per-computer. A team total ("Brick + Timber has saved 331 hours") needs one shared place to add up counts. Local-first stays the rule: the app works fully offline and only sends **numbers**, never macro text or anything you type.
+Since 2.2 every install adds its counts to one total across everyone (see AUDIT.md section 10, and `lib/report.js`). The endpoint is in the portfolio repo: `app/api/macro-manager/{register,stats}` over `lib/macroStats.ts`, on the site's Upstash Redis. It needs `MM_STATS_SECRET` set on Vercel; `scripts/macro-stats-admin.mjs` there reads the totals and subtracts an outlier install. **Deploy the portfolio side before releasing an app version that reports.**
+
+A team total ("Brick + Timber has saved 331 hours") builds on that. Local-first stays the rule: the app works fully offline and only sends **numbers**, never macro text or anything you type.
 
 1. **Settings → Team**: paste a team code (opt-in, off by default).
-2. The app queues `{ day, expansions, charsSaved, topAbbreviations }` locally and sends it once an hour when online. If it's offline, the queue waits.
-3. A small serverless endpoint (Vercel function + a Postgres or KV store) adds it up per team.
+2. Reports carry the team code alongside what they already send. No abbreviation names: they can be personal.
+3. The endpoint adds a `mm:team:<code>` total next to the overall one.
 4. A **Team** page in the app, plus a public read-only page for your portfolio, shows the team total, weekly leaders, team milestones, and the most-used shared macros.
 5. Later: **shared macro folders**, so a team lead publishes "Leasing replies" once and everyone gets them.

@@ -84,6 +84,7 @@
   let data = { prefix: '/', snippets };
   let settings = {
     theme: 'system', paused: false, launchAtLogin: true, shortcutErrors: {},
+    shareUsage: true, usageNoticeSeen: !params.has('notice'), // ?notice shows the first-run banner
     quickInsertShortcut: params.get('platform') === 'win32' ? 'Control+Alt+Space' : 'Command+Shift+Space',
     openWindowShortcut: params.get('platform') === 'win32' ? 'Control+Alt+M' : 'Command+Shift+M',
   };
@@ -94,7 +95,7 @@
       version: params.get('v') || '2.1.0', platform: params.get('platform') || 'darwin',
       dataPath: params.get('platform') === 'win32' ? 'C:\\Users\\you\\AppData\\Roaming\\macro-manager\\macros.json' : '~/Library/Application Support/macro-manager/macros.json',
       accessibility: !params.has('noax'), update: { status: params.get('update') || 'idle', version: '2.0.1', percent: 40 },
-      builtIns: BUILT_INS, tokens: TOKENS,
+      builtIns: BUILT_INS, tokens: TOKENS, statsUrl: 'https://throughnateseyes.com/work/macro-manager',
     }),
     saveMacros: async (d) => { data = JSON.parse(JSON.stringify(d)); return data; },
     popupMenu: async (items) => { console.log('[mock] context menu', items.map((i) => i.label || i.role || '—').join(' | ')); return null; },
