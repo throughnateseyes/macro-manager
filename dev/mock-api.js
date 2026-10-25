@@ -91,13 +91,14 @@
   window.macroAPI = {
     getState: async () => ({
       macros: data, usage, stats, today: dayKey(new Date()), settings,
-      version: '2.0.0', platform: params.get('platform') || 'darwin',
+      version: params.get('v') || '2.1.0', platform: params.get('platform') || 'darwin',
       dataPath: params.get('platform') === 'win32' ? 'C:\\Users\\you\\AppData\\Roaming\\macro-manager\\macros.json' : '~/Library/Application Support/macro-manager/macros.json',
       accessibility: !params.has('noax'), update: { status: params.get('update') || 'idle', version: '2.0.1', percent: 40 },
       builtIns: BUILT_INS, tokens: TOKENS,
     }),
     saveMacros: async (d) => { data = JSON.parse(JSON.stringify(d)); return data; },
-    confirmDelete: async (t) => confirm(`Delete “${t}”?`),
+    popupMenu: async (items) => { console.log('[mock] context menu', items.map((i) => i.label || i.role || '—').join(' | ')); return null; },
+    onInsertToken: noop,
     renameUsage: async () => usage,
     deleteUsage: async () => usage,
     previewTemplate: async (c) => preview(c),

@@ -82,11 +82,23 @@ const ICON = {
 };
 
 let toastTimer;
-function toast(msg) {
+// toast('Saved') — or with an action: toast('Deleted', { action: 'Undo', onAction })
+function toast(msg, { action, onAction, duration = 1800 } = {}) {
   el.toast.textContent = msg;
+  el.toast.classList.toggle('interactive', Boolean(action));
+  if (action) {
+    const b = h(`<button class="toast-action">${esc(action)}</button>`);
+    b.addEventListener('click', () => { hideToast(); onAction(); });
+    el.toast.append(b);
+  }
   el.toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.toast.classList.remove('show'), 1800);
+  toastTimer = setTimeout(hideToast, duration);
+}
+
+function hideToast() {
+  clearTimeout(toastTimer);
+  el.toast.classList.remove('show', 'interactive');
 }
 
 function prettyAccel(accel) {
@@ -367,6 +379,7 @@ function macroRow(i, q) {
       <div class="preview">${esc(preview(m.content, 80)) || '&nbsp;'}</div>
     </button>`);
   row.addEventListener('click', () => go('editor', i));
+  row.addEventListener('contextmenu', (e) => showMacroMenu(i, e));
   return row;
 }
 
@@ -400,6 +413,7 @@ function renderList() {
       writeLocal('collapsed', [...state.collapsed]);
       renderList();
     });
+    head.addEventListener('contextmenu', (e) => showFolderMenu(key, e));
     el.list.append(head);
     if (!collapsed) members.forEach((i) => el.list.append(macroRow(i, '')));
   };
@@ -518,8 +532,8 @@ function renderEditor() {
       h('<span class="save-status">Saved</span>'),
       pinButton(m),
       toolButton(ICON.copy, `Copy expansion`, copyExpansion),
-      toolButton(ICON.duplicate, `Duplicate (${MOD()}D)`, duplicateMacro),
-      toolButton(ICON.trash, 'Delete', deleteMacro, 'danger'),
+      toolButton(ICON.duplicate, `Duplicate (${MOD()}D)`, () => duplicateMacro()),
+      toolButton(ICON.trash, 'Delete', () => deleteMacro(), 'danger'),
     ],
   );
 
@@ -563,7 +577,10 @@ function renderEditor() {
         <div class="head"><span>Preview</span><span>Placeholders filled in</span></div>
         <div class="body" id="preview-body"></div>
       </div>
-      <div class="hint" id="hint"></div>
+      <div class="tryit">
+        <label class="tryit-label" for="f-try">Try it</label>
+        <textarea id="f-try" rows="2" spellcheck="false"></textarea>
+      </div>
     </div>`);
   el.view.append(ed);
 
@@ -602,22 +619,44 @@ function renderEditor() {
   });
 
   $('#btn-insert').addEventListener('click', (e) => openInsertMenu(e.currentTarget, fContent));
+  wireTryIt($('#f-try'));
 
   updateEditorMeta();
   if (!m.title && !m.abbr && !m.content) fTitle.focus();
 }
 
+// The practice box: expands any macro (or built-in) the way the real thing
+// will, without leaving the app. Real expansion is switched off inside
+// Macro Manager's own windows, so this is the only way to test in place.
+function wireTryIt(box) {
+  box.addEventListener('keydown', async (e) => {
+    if (![' ', 'Tab', 'Enter'].includes(e.key) || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
+    const prefix = state.macros.prefix;
+    const caret = box.selectionStart;
+    const word = box.value.slice(0, caret).match(/(\S+)$/)?.[1] || '';
+    const at = word.lastIndexOf(prefix);
+    if (at === -1) return;
+    const abbr = word.slice(at + prefix.length).toLowerCase();
+    if (!abbr) return;
+    const match = state.macros.snippets.find((m) => m.abbr && m.abbr.toLowerCase() === abbr);
+    const content = match ? match.content : state.builtIns.some((b) => b.abbr === abbr) ? `{${abbr}}` : null;
+    if (content === null || !content.trim()) return;
+    e.preventDefault();
+    const start = caret - (word.length - at);
+    const { text, cursorBack } = await api.previewTemplate(content);
+    box.setRangeText(text, start, caret, 'end');
+    const pos = box.selectionEnd - cursorBack;
+    box.setSelectionRange(pos, pos);
+    box.style.height = 'auto';
+    box.style.height = `${box.scrollHeight}px`;
+    box.classList.remove('flash');
+    void box.offsetWidth; // restart the highlight
+    box.classList.add('flash');
+  });
+}
+
 function pinButton(m) {
-  const b = toolButton(m.pinned ? ICON.pinFill : ICON.pin, m.pinned ? 'Unpin' : 'Pin to the top', async () => {
-    if (m.pinned) delete m.pinned; else m.pinned = true;
-    await flushSave();
-    renderList();
-    b.innerHTML = m.pinned ? ICON.pinFill : ICON.pin;
-    b.title = m.pinned ? 'Unpin' : 'Pin to the top';
-    b.classList.toggle('on', Boolean(m.pinned));
-    toast(m.pinned ? 'Pinned to the top' : 'Unpinned');
-  }, m.pinned ? 'on' : '');
-  return b;
+  return toolButton(m.pinned ? ICON.pinFill : ICON.pin, m.pinned ? 'Unpin' : 'Pin to the top', () => togglePin(state.selected), m.pinned ? 'on' : '');
 }
 
 let previewSeq = 0;
@@ -633,10 +672,12 @@ async function updateEditorMeta() {
   msg.className = `prop-msg ${issues.warn ? 'warn' : 'info'}${text ? '' : ' hidden'}`;
   msg.textContent = text || '';
 
-  const hint = $('#hint');
-  hint.innerHTML = m.abbr && !abbrProblem(m.abbr, prefix)
-    ? `Type <span class="chip">${esc(prefix + m.abbr)}</span> then Space, Tab or Enter in any app.`
-    : '';
+  const tryBox = $('#f-try');
+  if (tryBox) {
+    tryBox.placeholder = m.abbr && !abbrProblem(m.abbr, prefix)
+      ? `Type ${prefix}${m.abbr} and press Space to see it expand`
+      : 'Give this macro an abbreviation, then try it here';
+  }
 
   // Only show the preview when placeholders change what gets pasted.
   const card = $('#preview-card');
@@ -652,6 +693,18 @@ async function updateEditorMeta() {
   card.classList.remove('hidden');
 }
 
+function insertToken(textarea, token) {
+  const { selectionStart: a, selectionEnd: b } = textarea;
+  textarea.focus();
+  textarea.setRangeText(token, a, b, 'end');
+  textarea.dispatchEvent(new Event('input'));
+  if (token === '{date+7}') {
+    // Select the number so it's easy to change.
+    const pos = textarea.selectionEnd - 2;
+    textarea.setSelectionRange(pos, pos + 1);
+  }
+}
+
 function openInsertMenu(anchor, textarea) {
   openMenu(anchor, [
     { label: 'Insert placeholder' },
@@ -659,60 +712,20 @@ function openInsertMenu(anchor, textarea) {
       text: t.label,
       sub: t.desc,
       right: t.token,
-      onClick: () => {
-        const { selectionStart: a, selectionEnd: b, value } = textarea;
-        textarea.focus();
-        textarea.setRangeText(t.token, a, b, 'end');
-        textarea.dispatchEvent(new Event('input'));
-        if (t.token === '{date+7}') {
-          // Select the number so it's easy to change.
-          const pos = textarea.selectionEnd - 2;
-          textarea.setSelectionRange(pos, pos + 1);
-        }
-        void value;
-      },
+      onClick: () => insertToken(textarea, t.token),
     })),
   ], { align: 'right' });
 }
 
-async function newMacro() {
+async function newMacro(inFolder) {
   if (state.view === 'editor' && saveTimer) await flushSave();
   const s = state.macros.snippets;
   // Reuse an existing blank draft instead of stacking up new ones.
   const blank = s.findIndex((m) => !m.title && !m.abbr && !m.content);
   if (blank !== -1) return go('editor', blank);
-  const folder = state.view === 'editor' ? s[state.selected]?.folder : undefined;
+  const folder = typeof inFolder === 'string' ? inFolder : state.view === 'editor' ? s[state.selected]?.folder : undefined;
   s.push({ title: '', abbr: '', content: '', ...(folder ? { folder } : {}) });
   await go('editor', s.length - 1);
-}
-
-async function duplicateMacro() {
-  const m = state.macros.snippets[state.selected];
-  if (!m) return;
-  await flushSave();
-  let abbr = `${m.abbr}2`;
-  for (let n = 3; state.macros.snippets.some((s) => s.abbr.toLowerCase() === abbr.toLowerCase()); n++) abbr = `${m.abbr}${n}`;
-  const copy = { ...m, title: `${m.title || 'Untitled'} copy`, abbr };
-  state.macros.snippets.splice(state.selected + 1, 0, copy);
-  state.macros = await api.saveMacros(state.macros);
-  await go('editor', state.selected + 1);
-  toast('Duplicated');
-}
-
-async function deleteMacro() {
-  const m = state.macros.snippets[state.selected];
-  if (!m) return;
-  const empty = !m.title && !m.abbr && !m.content;
-  if (!empty && !(await api.confirmDelete(m.title))) return;
-  clearTimeout(saveTimer);
-  saveTimer = null;
-  state.macros.snippets.splice(state.selected, 1);
-  state.macros = await api.saveMacros(state.macros);
-  if (m.abbr && !state.macros.snippets.some((s) => s.abbr === m.abbr)) state.usage = await api.deleteUsage(m.abbr);
-  state.view = 'overview';
-  state.selected = -1;
-  render();
-  if (!empty) toast('Macro deleted');
 }
 
 async function copyExpansion() {
@@ -753,6 +766,15 @@ async function renderBuiltIns() {
       const { text: now } = await api.previewTemplate(`{${b.abbr}}`);
       await navigator.clipboard.writeText(now);
       toast(`Copied ${now}`);
+    });
+    row.addEventListener('contextmenu', async (e) => {
+      e.preventDefault();
+      const choice = await api.popupMenu([
+        { id: 'value', label: 'Copy Value' },
+        { id: 'abbr', label: `Copy “${prefix}${b.abbr}”` },
+      ]);
+      if (choice === 'value') row.click();
+      if (choice === 'abbr') { await navigator.clipboard.writeText(prefix + b.abbr); toast('Copied'); }
     });
     list.append(row);
   }
@@ -969,6 +991,11 @@ function renderSettings() {
       controls: uLabel ? [button(uLabel, uAction, 'small')] : [],
     }),
     groupRow({
+      name: 'What’s new',
+      sub: 'The highlights of this version.',
+      controls: [button('Show', () => showWhatsNew(), 'small')],
+    }),
+    groupRow({
       name: 'Release notes & downloads',
       sub: 'github.com/throughnateseyes/macro-manager',
       controls: [button('Open', () => api.openReleases(), 'small')],
@@ -1054,6 +1081,7 @@ document.addEventListener('keydown', (e) => {
 
   if (mod && k === 'n') { e.preventDefault(); newMacro(); return; }
   if (mod && k === 'k') { e.preventDefault(); api.showPalette(); return; }
+  if (mod && k === 'z' && !e.shiftKey && pendingDelete && !isTyping()) { e.preventDefault(); undoDelete(); return; }
   if (mod && k === 'f') { e.preventDefault(); go('library').then(() => $('#lib-q')?.focus()); return; }
   if (mod && k === ',') { e.preventDefault(); go('settings'); return; }
   if (mod && k === 's') { e.preventDefault(); if (state.view === 'editor') flushSave().then(() => toast('Saved')); return; }
@@ -1095,6 +1123,7 @@ document.addEventListener('keydown', (e) => {
   document.body.classList.add(IS_MAC() ? 'mac' : 'win');
   updateSearchKbd();
   render();
+  maybeShowWhatsNew();
 
   api.onStatsChanged(({ usage, stats }) => {
     state.usage = usage;
@@ -1106,9 +1135,20 @@ document.addEventListener('keydown', (e) => {
   api.onMacrosChanged((macros) => {
     // Ignore echoes of our own saves while typing.
     if (saveTimer) return;
+    // Changed in another window (Quick Insert, an import). Re-render the
+    // editor too: it holds references into the old state.macros.
+    // While typing in the editor, keep its live macro object (so no keystroke
+    // is lost) and take only the pin state from the incoming copy.
+    const editing = state.view === 'editor' && document.activeElement?.closest('.editor');
+    const live = state.macros.snippets[state.selected];
+    if (editing && live && macros.snippets.length === state.macros.snippets.length) {
+      const incoming = macros.snippets[state.selected];
+      if (incoming?.pinned) live.pinned = true; else delete live.pinned;
+      macros.snippets[state.selected] = live;
+    }
     state.macros = macros;
     renderList();
-    if (state.view !== 'editor') renderView();
+    if (!editing) renderView();
   });
   api.onSettingsChanged((settings) => {
     state.settings = settings;
@@ -1127,6 +1167,11 @@ document.addEventListener('keydown', (e) => {
     renderFooter();
     if (state.view !== 'editor') renderView();
   });
+  api.onInsertToken((token) => {
+    const ta = $('#f-content');
+    if (ta) insertToken(ta, token);
+  });
+  el.list.addEventListener('contextmenu', (e) => { if (e.target === el.list || e.target.closest('.list-empty')) showListMenu(e); });
   api.onNavigate((page) => {
     if (page === 'new') newMacro();
     else if (page.startsWith('macro:')) go('editor', Number(page.slice(6)));

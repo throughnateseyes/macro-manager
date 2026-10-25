@@ -286,6 +286,78 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 
 .hint { margin-top: 14px; color: var(--text-3); font-size: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
+/* ---- Try it ---- */
+.tryit { margin-top: 22px; }
+.tryit-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-2); margin-bottom: 6px; }
+.tryit textarea {
+  width: 100%;
+  min-height: 52px;
+  resize: none;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 0.5px dashed var(--border-2);
+  background: transparent;
+  font-size: 13.5px;
+  line-height: 1.55;
+  transition: background 600ms var(--ease), border-color 600ms var(--ease);
+}
+.tryit textarea:focus { border-style: solid; border-color: var(--accent); box-shadow: var(--focus); }
+.tryit textarea::placeholder { color: var(--text-3); }
+.tryit textarea.flash { animation: try-flash 900ms var(--ease); }
+@keyframes try-flash { from { background: var(--accent-soft); } to { background: transparent; } }
+
+/* ---- Toast actions, sheets ---- */
+.toast.interactive { pointer-events: auto; display: flex; align-items: center; gap: 14px; padding-right: 8px; }
+.toast-action {
+  padding: 3px 10px;
+  border-radius: 14px;
+  font-weight: 600;
+  color: var(--bg);
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+}
+.toast-action:hover { background: color-mix(in srgb, var(--bg) 28%, transparent); }
+
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  background: rgba(0, 0, 0, 0.28);
+  animation: sheet-fade 140ms var(--ease);
+}
+.sheet {
+  width: min(380px, calc(100vw - 32px));
+  padding: 18px 18px 14px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: var(--shadow-lg);
+  animation: sheet-in 180ms var(--ease);
+}
+.sheet h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+.sheet.ask input {
+  width: 100%; height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--border-2);
+  background: var(--bg);
+  font-size: 13px;
+}
+.sheet.ask input:focus { box-shadow: var(--focus); border-color: var(--accent); }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+@keyframes sheet-fade { from { opacity: 0; } }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+
+/* ---- What's new ---- */
+.sheet.whatsnew { width: min(460px, calc(100vw - 32px)); padding: 0 0 16px; overflow: hidden; }
+.wn-sky { position: relative; height: 128px; overflow: hidden; background: var(--sky-bg); color: var(--sky-ink); }
+.wn-head { position: absolute; left: 22px; right: 22px; bottom: 16px; }
+.wn-head p { font-size: 12px; opacity: 0.7; }
+.wn-head h2 { margin: 2px 0 0; font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.wn-list { list-style: none; padding: 8px 22px 4px; max-height: min(52vh, 420px); overflow-y: auto; }
+.wn-list li { display: flex; gap: 12px; padding: 10px 0; }
+.wn-list .tile { width: 26px; height: 26px; flex-shrink: 0; border-radius: 6.5px; box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.18); }
+.wn-list strong { display: block; font-size: 13.5px; font-weight: 600; }
+.wn-list span { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.5; color: var(--text-2); }
+.whatsnew .sheet-actions { padding: 0 22px; margin-top: 8px; }
+
 /* ---- Macros page ---- */
 .lib-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 12px 0 16px; }
 .lib-head h1 { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }

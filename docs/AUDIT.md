@@ -83,7 +83,35 @@ v2.0.0 crashed on every expansion. Electron 44 replaced the synchronous clipboar
 
 2.0.1 rewrites the clipboard code for the async API, catches everything inside the hook handlers, and extends the smoke test: CI now types `/smoke` + Space through the real handler on Windows and macOS, and refuses to publish unless the expansion is recorded and the clipboard comes back unchanged. No Windows user received 2.0.0.
 
-## 8. Still open
+## 8. Right-click audit (2.1)
+
+Before 2.1, right-click did nothing anywhere. Electron ships no context menu, so even a text field had no Cut, Copy, Paste or spelling suggestions. On Windows that's the first thing people try. 2.1 adds native menus everywhere one helps:
+
+| Where | Menu |
+|---|---|
+| Any text field | Spelling suggestions and Add to Dictionary, Cut, Copy, Paste, Select All |
+| The macro body | The above, plus **Insert Placeholder ▸** |
+| A macro: sidebar row, Macros-page card, Most used row | Open, Copy Text, Pin/Unpin, Duplicate, **Move to Folder ▸** (existing folders, New Folder…, Remove from Folder), Delete |
+| A folder header | New Macro in this folder, Rename Folder…, Remove Folder (keeps the macros, with Undo), Collapse All / Expand All |
+| The Pinned header | Unpin All, Collapse All / Expand All |
+| Empty space in the sidebar list | New Macro, Collapse All / Expand All |
+| A Date & Time row | Copy Value, Copy the abbreviation |
+| A Quick Insert result | Insert (or Copy / Open, depending on where it was opened), Copy, Edit, Pin/Unpin |
+
+Every macro command runs through one set of functions (`renderer/actions.js`), so Pin or Delete behaves the same wherever it's used. Delete is immediate, with an 8-second **Undo** toast (or ⌘Z / Ctrl+Z) instead of a confirmation dialog.
+
+## 9. Notes on support-style users
+
+Things noticed while building 2.x for people who answer the same questions all day:
+
+- **Enter sends messages in chat apps.** In Teams or Slack, ending an abbreviation with Enter sends the abbreviation before Macro Manager can replace it. Teach Space or Tab, or add an "expand immediately" option for chat.
+- **Programs run as administrator are out of reach.** Windows doesn't let a normal app type into an elevated one. Worth a line in the README if someone's property-management software runs that way.
+- **Remote desktop and Citrix** sessions often don't receive pasted keystrokes the way local apps do. That needs testing before telling a team it works there.
+- **Most replies are the same message with one or two details changed** (a name, a unit, a date). Fill-in fields and pick-lists would let one macro replace a folder of near-duplicates.
+- **Macros contain personal details** (addresses, phone numbers, signatures). Keeping everything on the device is a feature worth stating plainly, especially once it's open source.
+- **People switch from TextExpander.** An importer for its CSV export would make switching a one-click move.
+
+## 10. Still open
 
 - **Apple Developer ID**: needed for Mac auto-updates and to remove the first-launch prompt. The Accessibility half of this is solved: since 2.0.2, Mac builds are signed with one self-signed certificate, so macOS keeps the permission across updates (ad-hoc builds were identified by their hash and lost it every time).
 - **Windows code signing**: removes the SmartScreen "unknown publisher" prompt. Azure Trusted Signing costs about $10/mo.

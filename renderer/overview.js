@@ -252,6 +252,7 @@ function mostUsedList() {
         </button>
       </li>`);
     li.querySelector('button').addEventListener('click', () => go('editor', r.i));
+    li.querySelector('button').addEventListener('contextmenu', (e) => showMacroMenu(r.i, e));
     list.append(li);
   }
   wrap.append(list);

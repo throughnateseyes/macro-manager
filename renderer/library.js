@@ -84,6 +84,7 @@ function macroCard(i, last) {
       </span>
     </button>`);
   card.addEventListener('click', () => go('editor', i));
+  card.addEventListener('contextmenu', (e) => showMacroMenu(i, e));
   return card;
 }
 

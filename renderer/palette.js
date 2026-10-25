@@ -135,6 +135,7 @@ function render() {
       ${when}<span class="chip">${esc(state.macros.prefix + it.abbr)}</span>`;
     row.addEventListener('mousemove', () => { if (active !== i) { active = i; paintActive(); } });
     row.addEventListener('click', () => insert(i));
+    row.addEventListener('contextmenu', (e) => resultMenu(i, e));
     results.appendChild(row);
   });
 }
@@ -160,6 +161,35 @@ function insert(i = active) {
   if (mode === 'tray') return copy(i);
   if (mode === 'app') return it.builtIn ? copy(i) : api.paletteOpenMacro(it.index);
   api.paletteInsert({ content: it.content, abbr: it.builtIn ? null : it.abbr });
+}
+
+// Right-click a result: the same verbs as the footer, plus pinning.
+async function resultMenu(i, e) {
+  e.preventDefault();
+  const it = items[i];
+  if (!it) return;
+  active = i;
+  paintActive();
+  const enter = mode === 'tray' ? 'Copy' : mode === 'app' ? 'Open' : 'Insert';
+  const choice = await api.popupMenu([
+    { id: 'enter', label: enter },
+    ...(enter !== 'Copy' ? [{ id: 'copy', label: 'Copy' }] : []),
+    ...(it.builtIn ? [] : [
+      { id: 'edit', label: 'Edit in Macro Manager', enabled: mode !== 'app' },
+      { type: 'separator' },
+      { id: 'pin', label: it.pinned ? 'Unpin' : 'Pin to Top' },
+    ]),
+  ]);
+  if (choice === 'enter') insert(i);
+  if (choice === 'copy') copy(i);
+  if (choice === 'edit') api.paletteOpenMacro(it.index);
+  if (choice === 'pin') {
+    const m = state.macros.snippets[it.index];
+    if (m.pinned) delete m.pinned; else m.pinned = true;
+    state.macros = await api.saveMacros(state.macros);
+    build();
+    q.focus();
+  }
 }
 
 async function copy(i = active) {

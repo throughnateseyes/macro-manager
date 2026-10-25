@@ -9,7 +9,6 @@ const on = (channel) => (cb) => {
 contextBridge.exposeInMainWorld('macroAPI', {
   getState:          () => ipcRenderer.invoke('app:state'),
   saveMacros:        (data) => ipcRenderer.invoke('macros:save', data),
-  confirmDelete:     (title) => ipcRenderer.invoke('macros:confirmDelete', title),
   renameUsage:       (from, to) => ipcRenderer.invoke('usage:rename', from, to),
   deleteUsage:       (abbr) => ipcRenderer.invoke('usage:delete', abbr),
   previewTemplate:   (content) => ipcRenderer.invoke('template:preview', content),
@@ -22,6 +21,7 @@ contextBridge.exposeInMainWorld('macroAPI', {
   installUpdate:     () => ipcRenderer.invoke('app:installUpdate'),
   requestAccessibility: () => ipcRenderer.invoke('app:requestAccessibility'),
   showPalette:       () => ipcRenderer.invoke('app:showPalette'),
+  popupMenu:         (items) => ipcRenderer.invoke('menu:popup', items),
 
   paletteInsert:     (payload) => ipcRenderer.invoke('palette:insert', payload),
   paletteClose:      () => ipcRenderer.invoke('palette:close'),
@@ -35,4 +35,5 @@ contextBridge.exposeInMainWorld('macroAPI', {
   onNavigate:        on('navigate'),
   onAccessibility:   on('accessibility:changed'),
   onPaletteOpen:     on('palette:open'),
+  onInsertToken:     on('editor:insertToken'),
 });

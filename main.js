@@ -128,6 +128,7 @@ function createWindow({ show = true } = {}) {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  attachTextContextMenu(mainWindow);
 
   mainWindow.once('ready-to-show', () => {
     if (show) showWindow();
@@ -217,7 +218,9 @@ function createPalette() {
   paletteWindow.setAlwaysOnTop(true, 'pop-up-menu');
   if (IS_MAC) paletteWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   paletteWindow.loadFile(path.join(__dirname, 'renderer', 'palette.html'));
-  paletteWindow.on('blur', () => hidePalette());
+  attachTextContextMenu(paletteWindow);
+  // A right-click menu over the palette must not count as clicking away.
+  paletteWindow.on('blur', () => { if (!menuOpenOver) hidePalette(); });
 }
 
 // Whether Macro Manager itself had focus when the palette opened; if not, the
@@ -531,6 +534,68 @@ function installUpdate() {
 }
 
 // ---------------------------------------------------------------------------
+// Context menus
+//
+// Native menus, so right-click looks and behaves like the rest of macOS and
+// Windows. The renderers describe a menu as plain data ({ id, label,
+// submenu, checked, enabled, role, type: 'separator' }) and get back the id
+// that was picked, or null.
+// ---------------------------------------------------------------------------
+function buildMenuTemplate(items, pick) {
+  return items.map((it) => {
+    if (it.type === 'separator') return { type: 'separator' };
+    if (it.role) return { role: it.role };
+    return {
+      label: it.label,
+      enabled: it.enabled !== false,
+      ...(it.checked !== undefined ? { type: 'checkbox', checked: Boolean(it.checked) } : {}),
+      ...(it.submenu ? { submenu: buildMenuTemplate(it.submenu, pick) } : { click: () => pick(it.id) }),
+    };
+  });
+}
+
+let menuOpenOver = null;
+
+function popupMenu(win, items) {
+  return new Promise((resolve) => {
+    let chosen = null;
+    const menu = Menu.buildFromTemplate(buildMenuTemplate(items, (id) => { chosen = id; }));
+    menuOpenOver = win;
+    // On macOS the item's click can arrive just after the menu reports it
+    // closed, so wait a beat before answering.
+    menu.popup({ window: win, callback: () => setTimeout(() => { menuOpenOver = null; resolve(chosen); }, 40) });
+  });
+}
+
+// Text fields: spelling suggestions, then the usual edit commands. The macro
+// body (the only textarea) also offers its placeholders.
+function attachTextContextMenu(win) {
+  win.webContents.on('context-menu', (_e, p) => {
+    if (!p.isEditable && !p.selectionText) return;
+    const items = [];
+    if (p.misspelledWord) {
+      for (const word of p.dictionarySuggestions.slice(0, 5)) {
+        items.push({ label: word, click: () => win.webContents.replaceMisspelling(word) });
+      }
+      if (!p.dictionarySuggestions.length) items.push({ label: 'No guesses found', enabled: false });
+      items.push({ label: 'Add to Dictionary', click: () => win.webContents.session.addWordToSpellCheckerDictionary(p.misspelledWord) });
+      items.push({ type: 'separator' });
+    }
+    if (p.isEditable) items.push({ role: 'cut', enabled: p.editFlags.canCut }, { role: 'copy', enabled: p.editFlags.canCopy }, { role: 'paste', enabled: p.editFlags.canPaste });
+    else items.push({ role: 'copy' });
+    if (p.isEditable) items.push({ type: 'separator' }, { role: 'selectAll' });
+    if (p.formControlType === 'text-area' && win === mainWindow) {
+      items.push({ type: 'separator' }, {
+        label: 'Insert Placeholder',
+        submenu: TOKENS.map((t) => ({ label: `${t.label}   ${t.token}`, click: () => win.webContents.send('editor:insertToken', t.token) })),
+      });
+    }
+    menuOpenOver = win;
+    Menu.buildFromTemplate(items).popup({ window: win, callback: () => { menuOpenOver = null; } });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // IPC
 // ---------------------------------------------------------------------------
 ipcMain.handle('app:state', () => ({
@@ -561,18 +626,6 @@ ipcMain.handle('usage:delete', (_e, abbr) => store.deleteUsage(String(abbr)));
 ipcMain.handle('template:preview', (_e, content) => expandTemplate(String(content ?? ''), { clipboard: '[clipboard]' }));
 
 ipcMain.handle('settings:set', (_e, patch) => applySettings(patch || {}));
-
-ipcMain.handle('macros:confirmDelete', async (_e, title) => {
-  const { response } = await dialog.showMessageBox(mainWindow, {
-    type: 'warning',
-    message: `Delete “${title || 'Untitled'}”?`,
-    detail: 'You can’t undo this, but yesterday’s copy is kept in your backups folder.',
-    buttons: ['Delete', 'Cancel'],
-    defaultId: 1,
-    cancelId: 1,
-  });
-  return response === 0;
-});
 
 ipcMain.handle('macros:export', async () => {
   const today = new Date().toISOString().slice(0, 10);
@@ -619,6 +672,7 @@ ipcMain.handle('app:requestAccessibility', () => {
   return ok;
 });
 ipcMain.handle('app:showPalette', () => showPalette('insert'));
+ipcMain.handle('menu:popup', (e, items) => popupMenu(BrowserWindow.fromWebContents(e.sender), Array.isArray(items) ? items : []));
 
 // Palette → insert a macro into whatever app was focused before.
 ipcMain.handle('palette:insert', (_e, { content, abbr }) => {
