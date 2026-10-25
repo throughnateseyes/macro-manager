@@ -77,9 +77,15 @@ October 2026. This covers everything found in the v1 code, release setup, and UI
 - Per-macro "this week" count and a 30-day sparkline.
 - Everything is local (`stats.json`). Earlier usage counts are carried into the lifetime total.
 
-## 7. Still open
+## 7. Post-release fix (v2.0.1)
 
-- **Apple Developer ID**: needed for Mac auto-updates and to remove the first-launch prompt.
+v2.0.0 crashed on every expansion. Electron 44 replaced the synchronous clipboard API with the asynchronous W3C one, so the clipboard snapshot called a function that no longer existed. It threw inside uiohook's keydown callback, and uiohook-napi treats an uncaught JavaScript exception there as a fatal native error. The CI smoke test only checked that the app launched, so it passed.
+
+2.0.1 rewrites the clipboard code for the async API, catches everything inside the hook handlers, and extends the smoke test: CI now types `/smoke` + Space through the real handler on Windows and macOS, and refuses to publish unless the expansion is recorded and the clipboard comes back unchanged. No Windows user received 2.0.0.
+
+## 8. Still open
+
+- **Apple Developer ID**: needed for Mac auto-updates and to remove the first-launch prompt. Until then, every Mac update loses the Accessibility permission, because macOS identifies an ad-hoc-signed app by its build hash. A stable self-signed certificate would fix that part for free.
 - **Windows code signing**: removes the SmartScreen "unknown publisher" prompt. Azure Trusted Signing costs about $10/mo.
 - **Team stats**: needs a small backend. Options are in [RELEASING.md](RELEASING.md#team-stats-next).
 - **Non-US keyboard layouts**: abbreviations assume US key positions for symbols.
