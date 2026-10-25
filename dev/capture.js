@@ -10,6 +10,7 @@ const click = (text) =>
   `[...document.querySelectorAll('button')].find((b) => b.textContent.includes(${JSON.stringify(text)}))?.click()`;
 
 const SHOTS = [
+  { name: 'whats-new-windows.png', file: 'preview.html', query: 'platform=win32', theme: 'light', run: "localStorage.setItem('whatsNewSeen','2.0'); location.reload();" },
   { name: 'overview-light.png', file: 'preview.html', query: 'platform=darwin&solid&busy', theme: 'light' },
   { name: 'overview-dark.png', file: 'preview.html', query: 'platform=darwin&solid&busy', theme: 'dark' },
   { name: 'editor-light.png', file: 'preview.html', query: 'platform=darwin&solid', theme: 'light', run: click('Tour Confirmation') },
