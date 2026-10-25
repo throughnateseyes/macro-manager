@@ -48,7 +48,8 @@ const expander = createExpander({
   getMacros: () => macros,
   isPaused: () => settings.paused,
   // Don't expand inside our own windows (the editor, the palette's search).
-  isAppFocused: () => BrowserWindow.getFocusedWindow() !== null,
+  // The smoke test types into the app on purpose.
+  isAppFocused: () => !SMOKE_TEST && BrowserWindow.getFocusedWindow() !== null,
   onExpanded: (event) => recordUse(event),
 });
 
@@ -319,9 +320,10 @@ function prettyAccel(accel) {
 
 // Copy a macro's expansion from the tray — no app has text focus while a tray
 // menu is open, so pasting directly isn't reliable there.
-function copyFromTray(m) {
-  const { text } = expandTemplate(m.content, { clipboard: clipboard.readText() });
-  clipboard.writeText(text);
+async function copyFromTray(m) {
+  const current = await clipboard.readText().catch(() => '');
+  const { text } = expandTemplate(m.content, { clipboard: current });
+  await clipboard.writeText(text);
   recordUse({ abbr: m.abbr, chars: Array.from(text).length });
   if (Notification.isSupported()) {
     new Notification({ title: `Copied “${m.title || m.abbr}”`, body: `Paste it with ${IS_MAC ? '⌘V' : 'Ctrl+V'}.`, silent: true }).show();
@@ -346,7 +348,7 @@ function updateTrayMenu() {
   const macroItem = (m) => ({
     // Windows right-aligns text after a tab; macOS would show it literally.
     label: `${m.title || 'Untitled'}${IS_MAC ? '   ' : '\t'}${macros.prefix}${m.abbr}`,
-    click: () => copyFromTray(m),
+    click: () => copyFromTray(m).catch((err) => console.error('[tray] copy failed:', err)),
   });
 
   const template = [
@@ -619,8 +621,9 @@ ipcMain.handle('palette:insert', (_e, { content, abbr }) => {
   hidePalette();
   // Wait for focus to land back in the previous app before pasting.
   setTimeout(() => {
-    const chars = expander.paste(String(content ?? ''));
-    recordUse({ abbr: abbr || null, chars });
+    expander.paste(String(content ?? ''))
+      .then((chars) => recordUse({ abbr: abbr || null, chars }))
+      .catch((err) => console.error('[palette] insert failed:', err));
   }, IS_MAC ? 180 : 140);
 });
 ipcMain.handle('palette:copied', (_e, { abbr, chars }) => {
@@ -698,6 +701,24 @@ function runSmokeTest() {
       // (already done at require time) is what matters here.
       console.log('[smoke] keyboard hook unavailable on this runner:', err.message);
     }
+
+    // Type "/smoke" + Space through the real handler and paste path, with
+    // synthetic key presses switched off so nothing is typed on the runner.
+    // The expansion must be recorded and the clipboard put back exactly.
+    const { uIOhook, UiohookKey: K } = require('uiohook-napi');
+    uIOhook.keyTap = () => {};
+    macros = { prefix: '/', snippets: [{ title: 'Smoke', abbr: 'smoke', content: 'Smoke test {date}' }] };
+    const sentinel = `smoke-${Date.now()}`;
+    await clipboard.writeText(sentinel);
+    for (const code of [K.Slash, K.S, K.M, K.O, K.K, K.E, K.Space]) {
+      uIOhook.emit('keydown', { keycode: code, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false });
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+    const recorded = store.loadUsage().smoke || 0;
+    const restored = await clipboard.readText();
+    if (recorded !== 1) return fail(`expansion wasn't recorded (smoke count ${recorded})`);
+    if (restored !== sentinel) return fail(`clipboard not restored (got "${restored.slice(0, 40)}")`);
+    console.log('[smoke] expansion pasted, recorded, and clipboard restored');
     console.log(`[smoke] OK — v${app.getVersion()} on ${process.platform}`);
     app.exit(0);
   });
