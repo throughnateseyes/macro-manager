@@ -124,6 +124,35 @@ body.win .win-brand { display: flex; }
 .folder-header.collapsed .chev { transform: rotate(-90deg); }
 .folder-header .count { margin-left: auto; font-weight: 400; }
 
+.macro-item.picked { background: var(--accent-soft); }
+.macro-item.picked.active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+.pick-bar {
+  display: flex; align-items: center; gap: 4px;
+  margin: 0 10px 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: var(--radius);
+  background: var(--raised);
+  border: 0.5px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.pick-count { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; }
+.pick-bar .icon-btn { width: 24px; height: 24px; }
+.pick-bar .icon-btn .icon { width: 14px; height: 14px; }
+
+/* A file dragged over the window: drop to import. */
+body.dropping::after {
+  content: 'Drop to add these macros';
+  position: fixed; inset: 10px; z-index: 300;
+  display: grid; place-items: center;
+  border-radius: 14px;
+  border: 2px dashed var(--accent);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--accent-text);
+  font-size: 15px; font-weight: 600;
+  pointer-events: none;
+}
+
 .list-gap { height: 0.5px; margin: 8px 8px; background: var(--border); }
 .folder-header:first-child { margin-top: 2px; }
 .list-empty { padding: 24px 12px; color: var(--text-3); text-align: center; font-size: 12px; line-height: 1.5; }
@@ -459,7 +488,7 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 .whatsnew .sheet-actions { padding: 0 22px; margin-top: 8px; }
 
 /* ---- Macros page ---- */
-.lib-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 12px 0 16px; }
+.lib-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 12px 0 14px; }
 .lib-head h1 { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
 .lib-head h1 .count { font-size: 15px; font-weight: 500; letter-spacing: 0; }
 .lib-search {
@@ -488,39 +517,102 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 .filter:hover { color: var(--text); }
 .filter[aria-pressed="true"] { background: var(--text); color: var(--bg); font-weight: 500; }
 
-.lib-section { margin-top: 26px; }
-.lib-h { font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; gap: 6px; align-items: baseline; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
-.card {
-  display: flex; flex-direction: column; gap: 8px;
-  min-height: 132px;
-  padding: 14px 15px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  text-align: left;
-  transition: background 120ms var(--ease), box-shadow 120ms var(--ease);
+/* One line per macro. The columns are fixed widths so they line up across
+   groups; the name column takes what's left. Narrow windows drop columns
+   (the queries style the rows: a container can't restyle itself). */
+.lib-table {
+  --lcols: 24px minmax(0, 1fr) 150px 56px 84px;
+  container-type: inline-size;
+  margin-top: 14px;
 }
-.card:hover { background: var(--raised); box-shadow: var(--shadow-lg); }
-.card-top { display: flex; align-items: center; gap: 8px; }
-.card-title { flex: 1; min-width: 0; font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-title.untitled { color: var(--text-3); font-weight: 500; }
-.card .chip { background: var(--raised); }
-.card-body {
-  flex: 1;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-2);
-  white-space: pre-line;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  word-break: break-word;
+.lhead, .lrow {
+  display: grid;
+  grid-template-columns: var(--lcols);
+  align-items: center;
+  column-gap: 10px;
+  padding: 0 10px 0 6px;
 }
-.card-body em { color: var(--text-3); }
-.card-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.lhead {
+  height: 28px;
+  border-bottom: 0.5px solid var(--border);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+.lhead button { display: inline-flex; align-items: center; gap: 2px; justify-self: start; padding: 2px 4px; margin-left: -4px; border-radius: var(--radius-sm); color: inherit; }
+.lhead button.num { justify-self: end; margin: 0 -4px 0 0; }
+.lhead button:hover { color: var(--text); background: var(--hover); }
+.lhead button[aria-pressed="true"] { color: var(--text-2); font-weight: 600; }
+.lhead .chev { width: 11px; height: 11px; }
+
+.lgroup {
+  display: flex; align-items: center; gap: 4px;
+  height: 34px;
+  margin-top: 10px;
+  padding: 0 6px 0 2px;
+}
+.lgroup-wrap:first-child .lgroup { margin-top: 4px; }
+.lgroup-toggle { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600; color: var(--text); }
+.lgroup-toggle:hover { background: var(--hover); }
+.lgroup-toggle .count { font-weight: 400; }
+.lgroup .chev { width: 12px; height: 12px; color: var(--text-3); transition: transform 150ms var(--ease); }
+.lgroup.collapsed .chev { transform: rotate(-90deg); }
+.lgroup-acts { display: flex; gap: 2px; margin-left: auto; opacity: 0; transition: opacity 120ms var(--ease); }
+.lgroup:hover .lgroup-acts, .lgroup-acts:focus-within { opacity: 1; }
+.lgroup-acts .icon-btn { width: 24px; height: 24px; }
+.lgroup-acts .icon { width: 15px; height: 15px; }
+
+.lrow {
+  height: 34px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.lrow:hover { background: var(--hover); }
+.lrow:focus-visible { box-shadow: var(--focus); }
+.lrow.picked { background: var(--accent-soft); }
+.lname { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.ltitle { flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.ltitle.untitled { color: var(--text-3); font-weight: 400; }
+.lprev { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-3); font-size: 12.5px; }
+.lfolder { flex-shrink: 0; font-size: 11.5px; color: var(--text-2); padding: 0 6px; border-radius: 4px; background: var(--hover); }
+.lname .warn-dot { align-self: center; width: 6px; height: 6px; border-radius: 50%; background: var(--orange); flex-shrink: 0; }
+.lrow mark { background: var(--orange-soft); color: inherit; border-radius: 2px; }
+.ltrig { display: flex; gap: 4px; min-width: 0; overflow: hidden; }
+.ltrig .chip { background: transparent; border-color: var(--border-2); }
+.ltrig .chip.keys { font-family: var(--font); }
+.lnum, .lwhen { text-align: right; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lrow .none { color: var(--text-3); }
+
+/* The checkbox shows on hover, and on every row once something's picked. */
+.pick {
+  width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  justify-self: center;
+  border-radius: 4.5px;
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  opacity: 0;
+  transition: opacity 100ms var(--ease);
+}
+.pick .icon { width: 12px; height: 12px; stroke-width: 2; opacity: 0; color: var(--on-accent); }
+.lrow:hover .pick, .picking .pick { opacity: 1; }
+.lrow.picked .pick { background: var(--accent); border-color: var(--accent); }
+.lrow.picked .pick .icon { opacity: 1; }
+
+@container (max-width: 640px) {
+  .lhead, .lrow { grid-template-columns: 24px minmax(0, 1fr) 120px 48px; }
+  .lwhen, .lhead [data-sort="last"] { display: none; }
+}
+@container (max-width: 460px) {
+  .lhead, .lrow { grid-template-columns: 24px minmax(0, 1fr) 96px; }
+  .lnum, .lhead [data-sort="uses"], .ltrig .chip + .chip.keys { display: none; }
+}
+
+.lib-results { font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.lib-tip { margin-top: 22px; font-size: 12px; color: var(--text-3); line-height: 1.5; }
+.tb-picked { color: var(--text); font-weight: 500; }
 .lib-empty { margin-top: 40px; color: var(--text-3); text-align: center; }
-.page.lib { max-width: 1040px; }
+.page.lib { max-width: 980px; padding-left: 32px; padding-right: 32px; }
 
 /* ---- Built-ins ---- */
 .list-card { border-radius: var(--radius-lg); border: 0.5px solid var(--border); overflow: hidden; }

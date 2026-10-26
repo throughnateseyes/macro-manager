@@ -87,3 +87,20 @@ When a macro has fields, typing its abbreviation opens the fill-in prompt (the Q
 - **Paused releases the keys** to other apps. Inside Macro Manager a shortcut does nothing, except in the editor's Try it box, where it expands like everywhere else.
 - **Stats** are counted under the abbreviation as before. A macro with only a shortcut is counted under `shortcut:<accelerator>` (`statKey()`), and adding, changing or removing either one moves its history along, the way renaming an abbreviation always has.
 - **Import** skips a macro whose abbreviation you already have (as before), drops an incoming shortcut you already use, and skips a macro left with neither.
+
+## Sharing
+
+An exported file is the same shape as `macros.json`, plus an `exported` key older builds ignore:
+
+```jsonc
+{
+  "prefix": "/",
+  "snippets": [ /* … */ ],
+  "exported": { "by": "Macro Manager", "version": "2.2.0", "at": "2026-10-26T17:02:11.000Z", "kind": "share" }
+}
+```
+
+- **`kind: "backup"`** is Export All (Settings, or the Macros page's ⋯ menu): every macro exactly as stored.
+- **`kind: "share"`** is one macro, a few picked ones, or a folder (right-click, the sidebar's selection bar, or a folder header). Shares leave out `pinned`, since that's your own preference, and keep `folder`, so a colleague who imports your Leasing folder gets a Leasing folder.
+- The importer keeps their own `prefix`; the file's is ignored, as it always was.
+- A file can be imported from Settings, the Macros page's ⋯ menu, right-clicking the sidebar list, or by dropping it on the window. `lib/store.js` `buildExport()` writes it and `mergeImport()` reads it.
