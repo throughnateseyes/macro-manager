@@ -16,7 +16,7 @@ const REDUCED_MOTION = () => window.matchMedia('(prefers-reduced-motion: reduce)
 function overviewNumbers() {
   const s = state.macros.snippets;
   const usageTotal = Object.entries(state.usage)
-    .filter(([abbr]) => s.some((m) => m.abbr === abbr))
+    .filter(([key]) => s.some((m) => statKey(m) === key))
     .reduce((n, [, c]) => n + c, 0);
   const lifetime = state.stats.lifetime || usageTotal;
   const minutes = (state.stats.charsSaved || 0) / CHARS_PER_MINUTE || timeSavedMinutes();
@@ -46,7 +46,7 @@ function greeting() {
 function rankedMacros(range, limit) {
   const usage = usageInRange(range);
   return state.macros.snippets
-    .map((m, i) => ({ m, i, n: usage[m.abbr] || 0 }))
+    .map((m, i) => ({ m, i, n: usage[statKey(m)] || 0 }))
     .filter((r) => r.n > 0)
     .sort((a, b) => b.n - a.n)
     .slice(0, limit);
@@ -247,7 +247,7 @@ function mostUsedList() {
       <li>
         <button class="most-item" style="--share:${share.toFixed(3)}">
           <span class="most-title">${esc(r.m.title || 'Untitled')}</span>
-          <span class="chip">${esc(state.macros.prefix + r.m.abbr)}</span>
+          ${triggerChip(r.m)}
           <span class="most-n">${r.n.toLocaleString()}</span>
         </button>
       </li>`);

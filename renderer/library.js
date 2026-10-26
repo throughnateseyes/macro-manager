@@ -33,7 +33,7 @@ function lastUsedMap() {
 // The library's groups for the current filter, as [{ title, indices }].
 function librarySections() {
   const s = state.macros.snippets;
-  const idx = s.map((_, i) => i).filter((i) => s[i].title || s[i].abbr || s[i].content);
+  const idx = s.map((_, i) => i).filter((i) => s[i].title || s[i].abbr || s[i].shortcut || s[i].content);
   const last = lastUsedMap();
   const q = libQuery.trim().toLowerCase();
 
@@ -44,7 +44,7 @@ function librarySections() {
   }
 
   const pinned = sortedIndices(idx.filter((i) => s[i].pinned));
-  const recent = idx.filter((i) => last[s[i].abbr]).sort((a, b) => last[s[b].abbr] - last[s[a].abbr]);
+  const recent = idx.filter((i) => last[statKey(s[i])]).sort((a, b) => last[statKey(s[b])] - last[statKey(s[a])]);
 
   if (libFilter === 'pinned') return [{ title: 'Pinned', indices: pinned }];
   if (libFilter === 'recent') return [{ title: 'Recently used', indices: recent }];
@@ -69,13 +69,13 @@ function librarySections() {
 
 function macroCard(i, last) {
   const m = state.macros.snippets[i];
-  const uses = state.usage[m.abbr] || 0;
-  const when = last[m.abbr];
+  const uses = state.usage[statKey(m)] || 0;
+  const when = last[statKey(m)];
   const card = h(`
     <button class="card" data-i="${i}">
       <span class="card-top">
         <span class="card-title${m.title ? '' : ' untitled'}">${esc(m.title || 'Untitled')}</span>
-        ${m.abbr ? `<span class="chip">${esc(state.macros.prefix + m.abbr)}</span>` : ''}
+        ${triggerChip(m)}
       </span>
       <span class="card-body">${esc(readableText(m).trim()) || '<em>Empty</em>'}</span>
       <span class="card-meta">

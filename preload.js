@@ -38,4 +38,5 @@ contextBridge.exposeInMainWorld('macroAPI', {
   onAccessibility:   on('accessibility:changed'),
   onPaletteOpen:     on('palette:open'),
   onInsertToken:     on('editor:insertToken'),
+  onMacroShortcut:   on('macro:shortcut'),
 });

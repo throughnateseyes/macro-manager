@@ -85,6 +85,11 @@ const ICON = {
   italic:    '<svg class="icon" viewBox="0 0 16 16"><path d="M7 2.75h5M4 13.25h5M9.6 2.75 6.4 13.25"/></svg>',
   link:      '<svg class="icon" viewBox="0 0 16 16"><path d="M6.6 9.4 9.4 6.6M7.3 4.6l1.1-1.1a2.6 2.6 0 0 1 3.7 3.7L11 8.3M8.7 11.4l-1.1 1.1a2.6 2.6 0 0 1-3.7-3.7L5 7.7"/></svg>',
   bullets:   '<svg class="icon" viewBox="0 0 16 16"><path d="M6.5 4h7M6.5 8h7M6.5 12h7"/><path d="M3 4h.01M3 8h.01M3 12h.01" stroke-width="2.2"/></svg>',
+  pause:     '<svg class="icon" viewBox="0 0 16 16"><path d="M5.75 3.5v9M10.25 3.5v9" stroke-width="2"/></svg>',
+  play:      '<svg class="icon" viewBox="0 0 16 16"><path class="fill" d="M5 3.4v9.2a.7.7 0 0 0 1.05.6l7.2-4.6a.7.7 0 0 0 0-1.2l-7.2-4.6A.7.7 0 0 0 5 3.4z"/></svg>',
+  shortcut:  '<svg class="icon" viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="5.5" height="6.5" rx="1.4"/><rect x="9" y="4.5" width="5.5" height="6.5" rx="1.4"/><path d="M3 9h2.5M10.5 9h2.5"/></svg>',
+  close:     '<svg class="icon" viewBox="0 0 16 16"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/></svg>',
+  test:      '<svg class="icon" viewBox="0 0 16 16"><path d="M5.5 3.4v9.2l7.2-4.6z"/></svg>',
   numbers:   '<svg class="icon" viewBox="0 0 16 16"><path d="M7 4h6.5M7 8h6.5M7 12h6.5"/><path d="M2.6 2.9 3.6 2.4v3.3M2.4 9.2c.2-.6.7-.8 1.1-.8.5 0 .9.3.9.8 0 .7-1.2 1.4-2 2.4h2.1" stroke-width="1.2"/></svg>',
 };
 
@@ -136,21 +141,52 @@ function abbrProblem(abbr, prefix) {
   return null;
 }
 
-// Problems shown in the editor and as a dot in the sidebar.
+// Problems shown in the editor and as a dot in the sidebar: `warn`/`info`
+// sit under the abbreviation, `shortcutWarn` under the shortcut.
 function macroIssues(index) {
   const m = state.macros.snippets[index];
   if (!m) return {};
+  const shortcutWarn = shortcutIssue(index);
+  const out = (issue) => ({ ...issue, shortcutWarn, warn: issue.abbrWarn || shortcutWarn });
   const abbr = (m.abbr || '').toLowerCase();
-  const problem = abbrProblem(m.abbr, state.macros.prefix);
-  if (problem) return { warn: m.abbr || m.content ? problem : null };
+  if (!abbr && m.shortcut) {
+    return out(m.content.trim() ? {} : { abbrWarn: 'This macro is empty, so it won’t paste yet.' });
+  }
+  const problem = abbr ? abbrProblem(m.abbr, state.macros.prefix) : 'Add an abbreviation or a shortcut so this macro can expand.';
+  if (problem) return out({ abbrWarn: m.abbr || m.content ? problem : null });
   const firstOwner = state.macros.snippets.findIndex((s) => (s.abbr || '').toLowerCase() === abbr);
   if (firstOwner !== index) {
-    return { warn: `“${state.macros.snippets[firstOwner].title || 'Untitled'}” already uses ${state.macros.prefix}${m.abbr}. Only that one will expand.` };
+    return out({ abbrWarn: `“${state.macros.snippets[firstOwner].title || 'Untitled'}” already uses ${state.macros.prefix}${m.abbr}. Only that one will expand.` });
   }
-  if (!m.content.trim()) return { warn: 'This macro is empty, so it won’t expand yet.' };
+  if (!m.content.trim()) return out({ abbrWarn: 'This macro is empty, so it won’t expand yet.' });
   const builtIn = state.builtIns.find((b) => b.abbr === abbr);
-  if (builtIn) return { info: `Replaces the built-in ${state.macros.prefix}${builtIn.abbr} (${builtIn.title}).` };
-  return {};
+  if (builtIn) return out({ info: `Replaces the built-in ${state.macros.prefix}${builtIn.abbr} (${builtIn.title}).` });
+  return out({});
+}
+
+function shortcutIssue(index) {
+  const m = state.macros.snippets[index];
+  if (!m.shortcut) return null;
+  const problem = shortcutProblem(m.shortcut);
+  if (problem) return problem;
+  const keys = prettyAccel(m.shortcut);
+  if (sameAccel(m.shortcut, state.settings.quickInsertShortcut)) return `${keys} opens Quick Insert. Pick other keys or change that in Settings.`;
+  if (sameAccel(m.shortcut, state.settings.openWindowShortcut)) return `${keys} opens Macro Manager. Pick other keys or change that in Settings.`;
+  const firstOwner = state.macros.snippets.findIndex((s) => sameAccel(s.shortcut, m.shortcut));
+  if (firstOwner !== index) {
+    return `“${state.macros.snippets[firstOwner].title || 'Untitled'}” already uses ${keys}. Only that one will paste.`;
+  }
+  return (state.settings.macroShortcutErrors || {})[normalizeAccel(m.shortcut)] || null;
+}
+
+// A shortcut as it reads in a chip: Ctrl+Alt+T, or ⌃⌥T on a Mac.
+const shortAccel = (accel) => prettyAccel(accel).replace(/ \+ /g, '+').replace(' Space', 'Space');
+
+// The chip for how a macro is triggered: its abbreviation, or its shortcut
+// when it only has one.
+function triggerChip(m) {
+  if (m.abbr) return `<span class="chip"${m.shortcut ? ` title="Also ${esc(prettyAccel(m.shortcut))}"` : ''}>${esc(state.macros.prefix + m.abbr)}</span>`;
+  return m.shortcut ? `<span class="chip">${esc(shortAccel(m.shortcut))}</span>` : '';
 }
 
 // Rough characters-per-minute for an average typist (~40 wpm).
@@ -158,8 +194,8 @@ const CHARS_PER_MINUTE = 200;
 function timeSavedMinutes() {
   let chars = 0;
   for (const m of state.macros.snippets) {
-    const uses = state.usage[m.abbr] || 0;
-    chars += uses * Math.max(0, m.content.length - m.abbr.length - 2);
+    const uses = state.usage[statKey(m)] || 0;
+    chars += uses * Math.max(0, m.content.length - (m.abbr ? m.abbr.length + 2 : 0));
   }
   return chars / CHARS_PER_MINUTE;
 }
@@ -236,7 +272,7 @@ function nextMilestone(total) {
 // Persistence (autosave)
 // ---------------------------------------------------------------------------
 let saveTimer = null;
-let savedAbbr = null; // abbreviation as last persisted, for usage renames
+let savedKey = null; // stat key (abbreviation or shortcut) as last persisted, for usage renames
 
 function setSaveStatus(text) {
   const s = $('.save-status');
@@ -253,10 +289,10 @@ async function flushSave() {
   clearTimeout(saveTimer);
   saveTimer = null;
   const m = state.macros.snippets[state.selected];
-  if (m && savedAbbr !== null && m.abbr && savedAbbr && m.abbr !== savedAbbr) {
-    state.usage = await api.renameUsage(savedAbbr, m.abbr);
+  if (m && savedKey && statKey(m) && statKey(m) !== savedKey) {
+    state.usage = await api.renameUsage(savedKey, statKey(m));
   }
-  if (m) savedAbbr = m.abbr;
+  if (m) savedKey = statKey(m);
   // Keep our own copy as the source of truth: the editor holds references
   // into state.macros, so it must not be swapped out mid-edit.
   await api.saveMacros(state.macros);
@@ -266,7 +302,7 @@ async function flushSave() {
 // Leaving an untouched "New Macro" shouldn't leave a blank row behind.
 async function discardIfBlank(index) {
   const m = state.macros.snippets[index];
-  if (m && !m.title.trim() && !m.abbr.trim() && !m.content.trim()) {
+  if (m && !m.title.trim() && !m.abbr.trim() && !m.shortcut && !m.content.trim()) {
     state.macros.snippets.splice(index, 1);
     state.macros = await api.saveMacros(state.macros);
     return true;
@@ -285,7 +321,7 @@ async function go(view, index = -1) {
   }
   state.view = view;
   state.selected = view === 'editor' ? index : -1;
-  if (view === 'editor') savedAbbr = state.macros.snippets[index]?.abbr ?? null;
+  if (view === 'editor') savedKey = statKey(state.macros.snippets[index]) || null;
   closeMenu();
   render();
   el.view.scrollTop = 0;
@@ -323,7 +359,7 @@ function searchScore(m, q) {
 function sortedIndices(indices) {
   const s = state.macros.snippets;
   const byTitle = (a, b) => (s[a].title || '￿').localeCompare(s[b].title || '￿', undefined, { sensitivity: 'base' });
-  if (state.sort === 'usage') return indices.sort((a, b) => (state.usage[s[b].abbr] || 0) - (state.usage[s[a].abbr] || 0) || byTitle(a, b));
+  if (state.sort === 'usage') return indices.sort((a, b) => (state.usage[statKey(s[b])] || 0) - (state.usage[statKey(s[a])] || 0) || byTitle(a, b));
   if (state.sort === 'recent') return indices.sort((a, b) => b - a);
   return indices.sort(byTitle);
 }
@@ -381,7 +417,7 @@ function macroRow(i, q) {
       <div class="row">
         <span class="title${m.title ? '' : ' untitled'}">${m.title ? highlight(m.title, q) : 'Untitled'}</span>
         ${issues.warn ? '<span class="warn-dot" title="Needs attention"></span>' : ''}
-        ${m.abbr ? `<span class="chip">${highlight(state.macros.prefix + m.abbr, q)}</span>` : ''}
+        ${m.abbr ? `<span class="chip"${m.shortcut ? ` title="Also ${esc(prettyAccel(m.shortcut))}"` : ''}>${highlight(state.macros.prefix + m.abbr, q)}</span>` : m.shortcut ? `<span class="chip">${esc(shortAccel(m.shortcut))}</span>` : ''}
       </div>
       <div class="preview">${esc(preview(readableText(m), 80)) || '&nbsp;'}</div>
     </button>`);
@@ -504,7 +540,7 @@ function renderFooter() {
       <span class="status-dot${paused ? ' paused' : blocked ? ' blocked' : ''}"></span>
       <span>${paused ? 'Paused' : blocked ? 'Waiting for permission' : 'Expanding'}</span>
       <span class="spacer"></span>
-      <button class="link-btn">${paused ? 'Resume' : 'Pause'}</button>
+      <button class="icon-btn status-toggle" title="${paused ? 'Resume' : 'Pause'}" aria-label="${paused ? 'Resume expansion' : 'Pause expansion'}">${paused ? ICON.play : ICON.pause}</button>
     </div>`);
   row.querySelector('button').addEventListener('click', () => setSettings({ paused: !paused }));
   el.footer.append(row);
@@ -556,6 +592,7 @@ function renderEditor() {
     `${m.folder ? `<span class="crumb">${esc(m.folder)}</span><span class="sep">/</span>` : ''}<span class="crumb current">${esc(m.title || 'Untitled')}</span>`,
     [
       h('<span class="save-status">Saved</span>'),
+      toolButton(ICON.test, 'Try it', () => openTryIt()),
       pinButton(m),
       toolButton(ICON.copy, `Copy expansion`, copyExpansion),
       toolButton(ICON.duplicate, `Duplicate (${MOD()}D)`, () => duplicateMacro()),
@@ -563,8 +600,9 @@ function renderEditor() {
     ],
   );
 
-  const usage = state.usage[m.abbr] || 0;
-  const week = macroDaily(m.abbr, 7).reduce((a, b) => a + b, 0);
+  const key = statKey(m);
+  const usage = state.usage[key] || 0;
+  const week = macroDaily(key, 7).reduce((a, b) => a + b, 0);
   const ed = h(`
     <div class="editor">
       <input class="title-input" id="f-title" placeholder="Untitled" value="${esc(m.title)}" autocomplete="off" />
@@ -577,6 +615,16 @@ function renderEditor() {
               <input id="f-abbr" class="mono" placeholder="sig" value="${esc(m.abbr)}" autocomplete="off" spellcheck="false" />
             </label>
             <div id="abbr-msg" class="prop-msg hidden"></div>
+          </div>
+        </div>
+        <div class="prop">
+          <div class="prop-label">${ICON.shortcut}Shortcut</div>
+          <div class="prop-value">
+            <div class="shortcut-field">
+              <button class="prop-shortcut" id="f-shortcut" type="button"></button>
+              <button class="icon-btn shortcut-clear" id="f-shortcut-clear" type="button" title="Remove shortcut" aria-label="Remove shortcut">${ICON.close}</button>
+            </div>
+            <div id="shortcut-msg" class="prop-msg hidden"></div>
           </div>
         </div>
         <div class="prop">
@@ -596,7 +644,7 @@ function renderEditor() {
         </div>
         <div class="prop">
           <div class="prop-label">${ICON.chart}Used</div>
-          <div class="prop-value"><span class="prop-static used">${usage ? `${usage.toLocaleString()} time${usage === 1 ? '' : 's'} · ${week} this week ${sparkline(macroDaily(m.abbr, 30))}` : 'Not yet'}</span></div>
+          <div class="prop-value"><span class="prop-static used">${usage ? `${usage.toLocaleString()} time${usage === 1 ? '' : 's'} · ${week} this week ${sparkline(macroDaily(key, 30))}` : 'Not yet'}</span></div>
         </div>
       </div>
       <div class="divider"></div>
@@ -618,10 +666,6 @@ function renderEditor() {
       <div class="preview-card hidden" id="preview-card">
         <div class="head"><span>Preview</span><span id="preview-note"></span></div>
         <div class="body expansion" id="preview-body"></div>
-      </div>
-      <div class="tryit">
-        <label class="tryit-label" for="f-try">Try it</label>
-        <textarea id="f-try" rows="2" spellcheck="false"></textarea>
       </div>
     </div>`);
   el.view.append(ed);
@@ -684,17 +728,120 @@ function renderEditor() {
     if (chip) openFieldPopover(chip, fContent, chip.dataset.field);
   });
   renderFormatProp();
-  wireTryIt($('#f-try'));
+  wireShortcutField(m);
 
   updateEditorMeta();
   if (!m.title && !m.abbr && !m.content) fTitle.focus();
 }
 
-// The practice box: expands any macro (or built-in) the way the real thing
-// will, without leaving the app. Real expansion is switched off inside
-// Macro Manager's own windows, so this is the only way to test in place.
+// A shortcut as separate keys: Ctrl Alt T, or ⌃ ⌥ T on a Mac.
+function keycaps(accel) {
+  const names = IS_MAC()
+    ? { Command: '⌘', Super: '⌘', Control: '⌃', Alt: '⌥', Shift: '⇧' }
+    : { Control: 'Ctrl', Super: 'Win', Command: 'Win' };
+  return accel.split('+').filter(Boolean).map((k) => `<kbd class="keycap">${esc(names[k] || k)}</kbd>`).join('');
+}
+
+// The Shortcut property: click it, then press the keys. Esc cancels;
+// Backspace or the × removes the shortcut.
+function wireShortcutField(m) {
+  const btn = $('#f-shortcut'), clear = $('#f-shortcut-clear'), msg = $('#shortcut-msg');
+  const howTo = IS_MAC() ? 'Hold two of ⌃ ⌥ ⌘ ⇧ and press a key.' : 'Hold Ctrl and Alt (or Ctrl and Shift) and press a key.';
+  let recording = false;
+
+  const paint = () => {
+    btn.classList.toggle('empty', !m.shortcut);
+    btn.innerHTML = m.shortcut ? keycaps(m.shortcut) : 'None';
+    btn.title = m.shortcut ? 'Change shortcut' : 'Add a shortcut';
+    clear.classList.toggle('hidden', !m.shortcut);
+  };
+  const hint = (text, warn = false) => { msg.className = `prop-msg ${warn ? 'warn' : 'info'}`; msg.textContent = text; };
+  const set = (accel) => {
+    if (accel) m.shortcut = accel; else delete m.shortcut;
+    paint();
+    renderList();
+    updateEditorMeta();
+    flushSave(); // registers the new keys right away
+  };
+  const stop = () => {
+    if (!recording) return;
+    recording = false;
+    btn.classList.remove('recording');
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('keyup', onKeyUp, true);
+    api.setSettings({ __suspendShortcuts: false });
+    paint();
+    updateEditorMeta();
+  };
+  const heldMods = (e) => [e.metaKey && (IS_MAC() ? 'Command' : 'Super'), e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean);
+  const onKey = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === 'Escape') return stop();
+    if ((e.key === 'Backspace' || e.key === 'Delete') && !heldMods(e).length) { stop(); set(''); return; }
+    // Show the modifiers as they go down.
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) { btn.innerHTML = keycaps(heldMods(e).join('+')) + '<span class="keycap-more">…</span>'; return; }
+    const accel = accelFromEvent(e);
+    const problem = accel ? shortcutProblem(accel) : howTo;
+    if (problem) { hint(problem, Boolean(accel)); return; }
+    stop();
+    set(accel);
+  };
+  const onKeyUp = (e) => {
+    if (recording && !heldMods(e).length) btn.textContent = 'Press keys…';
+  };
+
+  btn.addEventListener('click', () => {
+    if (recording) return stop();
+    recording = true;
+    btn.classList.add('recording');
+    btn.textContent = 'Press keys…';
+    hint(`${howTo} Esc cancels.`);
+    // Recording Ctrl+Alt+T mustn't fire whatever Ctrl+Alt+T does now.
+    api.setSettings({ __suspendShortcuts: true });
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('keyup', onKeyUp, true);
+  });
+  btn.addEventListener('blur', stop);
+  clear.addEventListener('click', () => set(''));
+  paint();
+}
+
+// Try it: a practice box in a sheet that expands any macro (or built-in) the
+// way the real thing will, without leaving the app. Real expansion is
+// switched off inside Macro Manager's own windows, so this is the only way to
+// test in place. A macro's shortcut works here too (onMacroShortcut).
+let tryBox = null;
+
+function openTryIt() {
+  const m = state.macros.snippets[state.selected];
+  if (!m || tryBox) return;
+  const prefix = state.macros.prefix;
+  const ways = [
+    m.abbr && !abbrProblem(m.abbr, prefix) ? `type <span class="chip">${esc(prefix + m.abbr)}</span> and press Space` : '',
+    m.shortcut ? `press ${keycaps(m.shortcut)}` : '',
+  ].filter(Boolean);
+  const sheet = h(`
+    <div class="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Try it">
+      <div class="sheet tryit-sheet">
+        <h2>Try “${esc(m.title || 'Untitled')}”</h2>
+        <p class="tryit-hint">${ways.length ? `In the box, ${ways.join(' or ')}.` : 'Give this macro an abbreviation or a shortcut first.'}</p>
+        <textarea id="f-try" rows="3" spellcheck="false" placeholder="Type here"></textarea>
+        <div class="sheet-actions"><button class="btn" data-done>Done</button></div>
+      </div>
+    </div>`);
+  const close = () => { sheet.remove(); tryBox = null; };
+  sheet.querySelector('[data-done]').addEventListener('click', close);
+  sheet.addEventListener('mousedown', (e) => { if (e.target === sheet) close(); });
+  sheet.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+  document.body.append(sheet);
+  tryBox = sheet.querySelector('#f-try');
+  wireTryIt(tryBox);
+  tryBox.focus();
+}
+
 function wireTryIt(box) {
-  box.addEventListener('keydown', async (e) => {
+  box.addEventListener('keydown', (e) => {
     if (![' ', 'Tab', 'Enter'].includes(e.key) || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
     const prefix = state.macros.prefix;
     const caret = box.selectionStart;
@@ -707,24 +854,35 @@ function wireTryIt(box) {
     const content = match ? match.content : state.builtIns.some((b) => b.abbr === abbr) ? `{${abbr}}` : null;
     if (content === null || !content.trim()) return;
     e.preventDefault();
-    const start = caret - (word.length - at);
-    // Fields: ask first, like the real thing. Esc leaves the typing alone.
-    let values;
-    if (match && fieldsFor(match).length) {
-      values = await askFields(match);
-      box.focus();
-      if (!values) return;
-    }
-    const { text, cursorBack } = await api.previewTemplate(content, { format: match && match.format, values });
-    box.setRangeText(text, start, caret, 'end');
-    const pos = box.selectionEnd - cursorBack;
-    box.setSelectionRange(pos, pos);
-    box.style.height = 'auto';
-    box.style.height = `${box.scrollHeight}px`;
-    box.classList.remove('flash');
-    void box.offsetWidth; // restart the highlight
-    box.classList.add('flash');
+    expandInto(box, match, content, caret - (word.length - at), caret);
   });
+}
+
+// Replace start…end in the practice box with the expansion.
+async function expandInto(box, match, content, start, end) {
+  // Fields: ask first, like the real thing. Esc leaves the typing alone.
+  let values;
+  if (match && fieldsFor(match).length) {
+    values = await askFields(match);
+    box.focus();
+    if (!values) return;
+  }
+  const { text, cursorBack } = await api.previewTemplate(content, { format: match && match.format, values });
+  box.setRangeText(text, start, end, 'end');
+  const pos = box.selectionEnd - cursorBack;
+  box.setSelectionRange(pos, pos);
+  box.style.height = 'auto';
+  box.style.height = `${box.scrollHeight}px`;
+  box.classList.remove('flash');
+  void box.offsetWidth; // restart the highlight
+  box.classList.add('flash');
+}
+
+// A macro's shortcut was pressed while Macro Manager had focus.
+function onMacroShortcut(index) {
+  const m = state.macros.snippets[index];
+  if (!tryBox || !m || !m.content.trim() || document.activeElement !== tryBox) return;
+  expandInto(tryBox, m, m.content, tryBox.selectionStart, tryBox.selectionEnd);
 }
 
 function pinButton(m) {
@@ -736,20 +894,16 @@ async function updateEditorMeta() {
   const i = state.selected;
   const m = state.macros.snippets[i];
   if (!m) return;
-  const prefix = state.macros.prefix;
 
-  const msg = $('#abbr-msg');
   const issues = macroIssues(i);
-  const text = issues.warn || issues.info;
-  msg.className = `prop-msg ${issues.warn ? 'warn' : 'info'}${text ? '' : ' hidden'}`;
-  msg.textContent = text || '';
-
-  const tryBox = $('#f-try');
-  if (tryBox) {
-    tryBox.placeholder = m.abbr && !abbrProblem(m.abbr, prefix)
-      ? `Type ${prefix}${m.abbr} and press Space to see it expand`
-      : 'Give this macro an abbreviation, then try it here';
-  }
+  const show = (msg, warn, info) => {
+    const text = warn || info;
+    msg.className = `prop-msg ${warn ? 'warn' : 'info'}${text ? '' : ' hidden'}`;
+    msg.textContent = text || '';
+  };
+  show($('#abbr-msg'), issues.abbrWarn, issues.info);
+  // While recording, the recorder uses this line for its own hints.
+  if (!$('#f-shortcut.recording')) show($('#shortcut-msg'), issues.shortcutWarn);
 
   // Only show the preview when it differs from the text: placeholders,
   // fields or formatting.
@@ -1050,7 +1204,7 @@ async function newMacro(inFolder) {
   if (state.view === 'editor' && saveTimer) await flushSave();
   const s = state.macros.snippets;
   // Reuse an existing blank draft instead of stacking up new ones.
-  const blank = s.findIndex((m) => !m.title && !m.abbr && !m.content);
+  const blank = s.findIndex((m) => !m.title && !m.abbr && !m.shortcut && !m.content);
   if (blank !== -1) return go('editor', blank);
   const folder = typeof inFolder === 'string' ? inFolder : state.view === 'editor' ? s[state.selected]?.folder : undefined;
   s.push({ title: '', abbr: '', content: '', ...(folder ? { folder } : {}) });
@@ -1486,10 +1640,14 @@ document.addEventListener('keydown', (e) => {
     renderList();
     if (!editing) renderView();
   });
+  api.onMacroShortcut(onMacroShortcut);
   api.onSettingsChanged((settings) => {
     state.settings = settings;
     updateSearchKbd();
     renderFooter();
+    // Shortcut clashes come back from main once it has registered them.
+    renderList();
+    if (state.view === 'editor') updateEditorMeta();
     if (state.view === 'settings' || state.view === 'overview') renderView();
   });
   api.onUpdateState((u) => {

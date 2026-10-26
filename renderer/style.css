@@ -153,6 +153,8 @@ body.win .win-brand { display: flex; }
 .status-dot.paused { background: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
 .status-dot.blocked { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
 .status-row .spacer { flex: 1; }
+.status-toggle { width: 24px; height: 24px; margin: -3px 0; }
+.status-toggle .icon { width: 13px; height: 13px; }
 .link-btn { color: var(--accent-text); font-size: 12px; font-weight: 500; padding: 2px 4px; border-radius: 4px; }
 .link-btn:hover { background: var(--accent-soft); }
 
@@ -277,6 +279,32 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
   font-size: 13px;
 }
 .prop-select:hover { background: var(--hover); }
+
+.shortcut-field { display: flex; align-items: center; gap: 2px; align-self: flex-start; margin-top: 2px; }
+.prop-shortcut {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 30px; padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.prop-shortcut:hover { background: var(--hover); }
+.prop-shortcut.empty { color: var(--text-3); }
+.prop-shortcut.recording { background: var(--surface); box-shadow: inset 0 0 0 1px var(--accent), var(--focus); color: var(--accent-text); }
+.keycap {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; padding: 0 6px;
+  border-radius: 5px;
+  border: 0.5px solid var(--border-2);
+  border-bottom-width: 1.5px;
+  background: var(--surface);
+  font-family: var(--font);
+  font-size: 12px; font-weight: 500;
+  color: var(--text);
+}
+.keycap-more { color: var(--text-3); }
+.shortcut-clear { width: 22px; height: 22px; color: var(--text-3); opacity: 0; }
+.shortcut-field:hover .shortcut-clear, .shortcut-clear:focus-visible { opacity: 1; }
+.shortcut-clear .icon { width: 12px; height: 12px; }
 .prop-select .chev { width: 12px; height: 12px; color: var(--text-3); }
 
 .content-input {
@@ -307,23 +335,26 @@ body.win .toolbar { height: 44px; padding-right: 150px; } /* room for window con
 .hint { margin-top: 14px; color: var(--text-3); font-size: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 /* ---- Try it ---- */
-.tryit { margin-top: 22px; }
-.tryit-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-2); margin-bottom: 6px; }
-.tryit textarea {
+.sheet.tryit-sheet { width: min(460px, calc(100vw - 32px)); }
+.tryit-hint { font-size: 12.5px; color: var(--text-2); margin: -4px 0 10px; line-height: 1.7; }
+.tryit-hint .chip { font-size: 11.5px; }
+.tryit-hint .keycap { height: 20px; min-width: 20px; font-size: 11.5px; margin-right: 2px; }
+.tryit-sheet textarea {
   width: 100%;
-  min-height: 52px;
+  min-height: 72px;
+  max-height: 50vh;
   resize: none;
   padding: 10px 12px;
   border-radius: var(--radius);
-  border: 0.5px dashed var(--border-2);
-  background: transparent;
+  border: 0.5px solid var(--border-2);
+  background: var(--bg);
   font-size: 13.5px;
   line-height: 1.55;
-  transition: background 600ms var(--ease), border-color 600ms var(--ease);
+  transition: background 600ms var(--ease);
 }
-.tryit textarea:focus { border-style: solid; border-color: var(--accent); box-shadow: var(--focus); }
-.tryit textarea::placeholder { color: var(--text-3); }
-.tryit textarea.flash { animation: try-flash 900ms var(--ease); }
+.tryit-sheet textarea:focus { border-color: var(--accent); box-shadow: var(--focus); }
+.tryit-sheet textarea::placeholder { color: var(--text-3); }
+.tryit-sheet textarea.flash { animation: try-flash 900ms var(--ease); }
 @keyframes try-flash { from { background: var(--accent-soft); } to { background: transparent; } }
 
 /* ---- Toast actions, sheets ---- */
