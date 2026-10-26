@@ -23,6 +23,7 @@ const state = {
   sort: readLocal('sort', 'name'),            // name | usage | recent
   collapsed: new Set(readLocal('collapsed', [])),
   range: readLocal('range', 'all'),           // most-used range: 7 | 30 | all
+  picked: new Set(),  // macros picked with ⌘/Ctrl- or Shift-click (see actions.js)
 };
 
 const IS_MAC = () => state.platform === 'darwin';
@@ -35,6 +36,7 @@ const el = {
   search: $('#search'),
   searchKbd: $('#search-kbd'),
   footer: $('#sidebar-footer'),
+  pickBar: $('#pick-bar'),
   view: $('#view'),
   tbLeft: $('#toolbar-left'),
   tbRight: $('#toolbar-right'),
@@ -91,6 +93,8 @@ const ICON = {
   close:     '<svg class="icon" viewBox="0 0 16 16"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/></svg>',
   test:      '<svg class="icon" viewBox="0 0 16 16"><path d="M5.5 3.4v9.2l7.2-4.6z"/></svg>',
   numbers:   '<svg class="icon" viewBox="0 0 16 16"><path d="M7 4h6.5M7 8h6.5M7 12h6.5"/><path d="M2.6 2.9 3.6 2.4v3.3M2.4 9.2c.2-.6.7-.8 1.1-.8.5 0 .9.3.9.8 0 .7-1.2 1.4-2 2.4h2.1" stroke-width="1.2"/></svg>',
+  share:     '<svg class="icon" viewBox="0 0 16 16"><path d="M8 10V2.5M5.25 5.25 8 2.5l2.75 2.75M3.5 8.5v3.75c0 .7.55 1.25 1.25 1.25h6.5c.7 0 1.25-.55 1.25-1.25V8.5"/></svg>',
+  more:      '<svg class="icon" viewBox="0 0 16 16"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01" stroke-width="2.2"/></svg>',
 };
 
 // On Windows the toolbar, sidebar and footer use Microsoft's Fluent System
@@ -109,6 +113,8 @@ const WIN_ICON = {
   close:     '<svg class="icon fl" viewBox="0 0 12 12"><path d="M2.08859 2.21569L2.14645 2.14645C2.32001 1.97288 2.58944 1.9536 2.78431 2.08859L2.85355 2.14645L6 5.293L9.14645 2.14645C9.34171 1.95118 9.65829 1.95118 9.85355 2.14645C10.0488 2.34171 10.0488 2.65829 9.85355 2.85355L6.707 6L9.85355 9.14645C10.0271 9.32001 10.0464 9.58944 9.91141 9.78431L9.85355 9.85355C9.67999 10.0271 9.41056 10.0464 9.21569 9.91141L9.14645 9.85355L6 6.707L2.85355 9.85355C2.65829 10.0488 2.34171 10.0488 2.14645 9.85355C1.95118 9.65829 1.95118 9.34171 2.14645 9.14645L5.293 6L2.14645 2.85355C1.97288 2.67999 1.9536 2.41056 2.08859 2.21569L2.14645 2.14645L2.08859 2.21569Z"/></svg>',
   plus:      '<svg class="icon fl" viewBox="0 0 20 20"><path d="M10 2.5C10.2761 2.5 10.5 2.72386 10.5 3V9.5H17C17.2761 9.5 17.5 9.72386 17.5 10C17.5 10.2761 17.2761 10.5 17 10.5H10.5V17C10.5 17.2761 10.2761 17.5 10 17.5C9.72386 17.5 9.5 17.2761 9.5 17V10.5H3C2.72386 10.5 2.5 10.2761 2.5 10C2.5 9.72386 2.72386 9.5 3 9.5H9.5V3C9.5 2.72386 9.72386 2.5 10 2.5Z"/></svg>',
   search:    '<svg class="icon fl" viewBox="0 0 20 20"><path d="M13.7291 14.4362C12.5924 15.411 11.115 16 9.5 16C5.91015 16 3 13.0899 3 9.5C3 5.91015 5.91015 3 9.5 3C13.0899 3 16 5.91015 16 9.5C16 11.115 15.411 12.5924 14.4361 13.7292L17.8535 17.1465C18.0487 17.3417 18.0487 17.6583 17.8535 17.8536C17.6799 18.0271 17.4105 18.0464 17.2156 17.9114L17.1464 17.8536L13.7291 14.4362ZM13.0196 13.7266C13.276 13.5128 13.5127 13.2761 13.7265 13.0197C14.5216 12.0659 15 10.8388 15 9.5C15 6.46243 12.5376 4 9.5 4C6.46243 4 4 6.46243 4 9.5C4 12.5376 6.46243 15 9.5 15C10.8388 15 12.0658 14.5217 13.0196 13.7266Z"/></svg>',
+  share:     '<svg class="icon fl" viewBox="0 0 20 20"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M10 12.5v-9M6.5 7 10 3.5 13.5 7M4.5 10.5V14a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-3.5"/></svg>',
+  more:      '<svg class="icon fl" viewBox="0 0 20 20"><circle cx="5" cy="10" r="1.25"/><circle cx="10" cy="10" r="1.25"/><circle cx="15" cy="10" r="1.25"/></svg>',
   sort:      '<svg class="icon fl" viewBox="0 0 20 20"><path d="M2.35355 7.35418L4.99792 4.70981V16.5C4.99792 16.7761 5.22178 17 5.49792 17C5.77407 17 5.99792 16.7761 5.99792 16.5V4.7053L8.64682 7.3542C8.84209 7.54946 9.15867 7.54946 9.35393 7.3542C9.54919 7.15893 9.54919 6.84235 9.35393 6.64709L5.86386 3.15701L5.85387 3.14675C5.81608 3.10895 5.77374 3.07847 5.72861 3.05531C5.65697 3.01841 5.57828 2.99998 5.49959 3L5.49792 3C5.3441 3 5.20649 3.06947 5.11477 3.17874L1.64645 6.64707C1.45118 6.84233 1.45118 7.15891 1.64645 7.35418C1.84171 7.54944 2.15829 7.54944 2.35355 7.35418ZM17.6468 12.6458L15.0025 15.2902L15.0025 3.5C15.0025 3.22386 14.7786 3 14.5025 3C14.2263 3 14.0025 3.22386 14.0025 3.5L14.0025 15.2947L11.3536 12.6458C11.1583 12.4505 10.8417 12.4505 10.6464 12.6458C10.4512 12.8411 10.4512 13.1577 10.6464 13.3529L14.1365 16.843L14.1465 16.8533C14.1843 16.891 14.2266 16.9215 14.2718 16.9447C14.3434 16.9816 14.4221 17 14.5008 17L14.5025 17C14.6563 17 14.7939 16.9305 14.8856 16.8213L18.3539 13.3529C18.5492 13.1577 18.5492 12.8411 18.3539 12.6458C18.1587 12.4506 17.8421 12.4506 17.6468 12.6458Z"/></svg>',
 };
 
@@ -432,7 +438,7 @@ function macroRow(i, q) {
   const m = state.macros.snippets[i];
   const issues = macroIssues(i);
   const row = h(`
-    <button class="macro-item${i === state.selected ? ' active' : ''}" role="option" data-index="${i}" aria-selected="${i === state.selected}">
+    <button class="macro-item${i === state.selected ? ' active' : ''}${state.picked.has(m) ? ' picked' : ''}" role="option" data-index="${i}" aria-selected="${i === state.selected || state.picked.has(m)}">
       <div class="row">
         <span class="title${m.title ? '' : ' untitled'}">${m.title ? highlight(m.title, q) : 'Untitled'}</span>
         ${issues.warn ? '<span class="warn-dot" title="Needs attention"></span>' : ''}
@@ -440,7 +446,11 @@ function macroRow(i, q) {
       </div>
       <div class="preview">${esc(preview(readableText(m), 80)) || '&nbsp;'}</div>
     </button>`);
-  row.addEventListener('click', () => go('editor', i));
+  row.addEventListener('click', (e) => {
+    if (pickClick(i, e, visibleOrder())) return;
+    clearPicked();
+    go('editor', i);
+  });
   row.addEventListener('contextmenu', (e) => showMacroMenu(i, e));
   return row;
 }
@@ -450,6 +460,8 @@ function renderList() {
   const q = state.search.trim().toLowerCase();
   el.count.textContent = s.length || '';
   el.list.innerHTML = '';
+  prunePicked();
+  renderPickBar();
 
   if (!s.length) {
     el.list.append(h(`<div class="list-empty">No macros yet.<br>Press ${MOD()}N to create one.</div>`));
@@ -486,6 +498,26 @@ function renderList() {
   }
   sec.loose.forEach((i) => el.list.append(macroRow(i, '')));
   for (const f of sec.folders) section(f.name, f.name, f.members);
+}
+
+// Shown while macros are picked: what you can do with all of them at once.
+function renderPickBar() {
+  const n = state.picked.size;
+  el.pickBar.classList.toggle('hidden', !n);
+  if (!n) { el.pickBar.innerHTML = ''; return; }
+  el.pickBar.innerHTML = '';
+  el.pickBar.append(
+    h(`<span class="pick-count">${n} selected</span>`),
+    button(`${ICON.share}Export`, () => exportMacros(pickedIndices()), 'small'),
+    toolButton(ICON.more, 'More', () => showPickedMenu()),
+    toolButton(ICON.close, 'Deselect', () => clearPicked()),
+  );
+}
+
+// After the picked set changes: the sidebar, and the Macros page if it's open.
+function refreshPicked() {
+  renderList();
+  if (state.view === 'library') updateLibraryPicks();
 }
 
 function moveSelection(delta) {
@@ -1469,18 +1501,10 @@ function renderSettings() {
   page.append(group('Your data', [
     groupRow({
       name: 'Back up or move your macros',
-      sub: 'Export to a file you can import on another computer.',
+      sub: 'Export everything to a file you can import on another computer. To share a few macros, right-click them in the list.',
       controls: [
-        button('Import…', async () => {
-          const r = await api.importMacros();
-          if (r.ok) toast(r.added ? `Imported ${r.added} macro${r.added === 1 ? '' : 's'}${r.skipped ? ` · ${r.skipped} already existed` : ''}` : 'Nothing new to import');
-          else if (r.error) toast(r.error);
-        }, 'small'),
-        button('Export…', async () => {
-          const r = await api.exportMacros();
-          if (r.ok) toast(`Exported ${r.count} macros`);
-          else if (r.error) toast(r.error);
-        }, 'small'),
+        button('Import…', () => importMacros(), 'small'),
+        button('Export All…', () => exportMacros(), 'small'),
       ],
     }),
     groupRow({
@@ -1597,6 +1621,11 @@ document.addEventListener('keydown', (e) => {
   if (mod && k === 'n') { e.preventDefault(); newMacro(); return; }
   if (mod && k === 'k') { e.preventDefault(); api.showPalette(); return; }
   if (mod && k === 'z' && !e.shiftKey && pendingDelete && !isTyping()) { e.preventDefault(); undoDelete(); return; }
+  if (mod && k === 'a' && !isTyping() && (state.view === 'library' || state.view === 'editor')) {
+    e.preventDefault();
+    pickAll(state.view === 'library' ? libraryOrder() : visibleOrder());
+    return;
+  }
   if (mod && k === 'f') { e.preventDefault(); go('library').then(() => $('#lib-q')?.focus()); return; }
   if (mod && k === ',') { e.preventDefault(); go('settings'); return; }
   if (mod && k === 's') { e.preventDefault(); if (state.view === 'editor') flushSave().then(() => toast('Saved')); return; }
@@ -1607,6 +1636,7 @@ document.addEventListener('keydown', (e) => {
     if (popoverCleanup) { closePopover(true); return; }
     if (!el.menu.classList.contains('hidden')) { closeMenu(); return; }
     if (isTyping()) { document.activeElement.blur(); return; }
+    if (clearPicked()) return;
     if (state.view !== 'overview') go('overview');
     return;
   }
@@ -1615,6 +1645,29 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     moveSelection(e.key === 'ArrowDown' ? 1 : -1);
   }
+});
+
+// Drop a file someone shared anywhere on the window to add its macros.
+let dragDepth = 0;
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+const endDrag = () => { dragDepth = 0; document.body.classList.remove('dropping'); };
+document.addEventListener('dragenter', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth += 1;
+  document.body.classList.add('dropping');
+});
+document.addEventListener('dragleave', (e) => { if (hasFiles(e) && --dragDepth <= 0) endDrag(); });
+document.addEventListener('dragover', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+document.addEventListener('drop', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  endDrag();
+  importDropped([...e.dataTransfer.files]);
 });
 
 // ---------------------------------------------------------------------------
@@ -1671,6 +1724,8 @@ document.addEventListener('keydown', (e) => {
       macros.snippets[state.selected] = live;
     }
     state.macros = macros;
+    // The picked macros were the old objects.
+    if (!editing) state.picked.clear();
     renderList();
     if (!editing) renderView();
   });

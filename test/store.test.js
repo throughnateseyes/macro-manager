@@ -60,6 +60,30 @@ test('import skips abbreviations that already exist', () => {
   assert.strictEqual(r.merged.snippets.length, 2);
 });
 
+test('a shared export leaves out pinning, keeps folders, and imports elsewhere', () => {
+  const dir = tmp();
+  const store = createStore(dir);
+  const mine = [
+    { title: 'Tour', abbr: 'tour', content: 'Hi {field:Name}', folder: 'Leasing', pinned: true, shortcut: 'Control+Alt+T' },
+    { title: 'Sig', abbr: 'sig', content: 'Best' },
+  ];
+  store.saveMacros({ prefix: ';', snippets: mine });
+  const share = store.buildExport([mine[0]], { version: '2.3.0' });
+  assert.strictEqual(share.exported.kind, 'share');
+  assert.deepStrictEqual(share.snippets, [{ title: 'Tour', abbr: 'tour', content: 'Hi {field:Name}', folder: 'Leasing', shortcut: 'Control+Alt+T' }]);
+
+  const backup = store.buildExport();
+  assert.strictEqual(backup.exported.kind, 'backup');
+  assert.strictEqual(backup.snippets.length, 2);
+  assert.strictEqual(backup.snippets[0].pinned, true);
+
+  const other = createStore(tmp());
+  const r = other.mergeImport(JSON.parse(JSON.stringify(share)));
+  assert.strictEqual(r.added, 1);
+  assert.strictEqual(r.merged.snippets[0].folder, 'Leasing');
+  assert.strictEqual(r.merged.prefix, '/'); // the importer keeps their own prefix
+});
+
 test('recent uses are newest first, deduped, and capped', () => {
   const dir = tmp();
   const store = createStore(dir);

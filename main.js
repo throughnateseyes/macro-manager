@@ -765,40 +765,60 @@ ipcMain.handle('expansion:copy', async (_e, { content, format, fields, values, r
 
 ipcMain.handle('settings:set', (_e, patch) => applySettings(patch || {}));
 
-ipcMain.handle('macros:export', async () => {
+// Export everything (a backup), or `snippets` to share: one macro, a few, or
+// a folder. `name` is the suggested file name for a share.
+ipcMain.handle('macros:export', async (_e, { snippets, name } = {}) => {
+  const share = Array.isArray(snippets);
   const today = new Date().toISOString().slice(0, 10);
+  const base = (share && safeFileName(name)) || `macro-manager-backup-${today}`;
   const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
-    title: 'Export Macros',
-    defaultPath: path.join(app.getPath('documents'), `macro-manager-backup-${today}.json`),
-    filters: [{ name: 'JSON', extensions: ['json'] }],
+    title: share ? 'Export Macros to Share' : 'Export All Macros',
+    defaultPath: path.join(app.getPath('documents'), `${base}.json`),
+    filters: [{ name: 'Macro Manager file', extensions: ['json'] }],
   });
   if (canceled || !filePath) return { ok: false };
   try {
-    fs.writeFileSync(filePath, JSON.stringify(macros, null, 2), 'utf-8');
-    return { ok: true, count: macros.snippets.length };
+    const data = store.buildExport(share ? snippets : undefined, { version: app.getVersion() });
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    return { ok: true, count: data.snippets.length, file: path.basename(filePath) };
   } catch (err) {
     return { ok: false, error: err.message };
   }
 });
 
-ipcMain.handle('macros:import', async () => {
-  const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
-    title: 'Import Macros',
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-    properties: ['openFile'],
-  });
-  if (canceled || !filePaths.length) return { ok: false };
+// Characters Windows or macOS won't take in a file name.
+function safeFileName(name) {
+  return String(name || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+function importMacroText(text) {
   try {
-    const incoming = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
-    const { merged, added, skipped } = store.mergeImport(incoming);
+    const { merged, added, skipped } = store.mergeImport(JSON.parse(text));
     macros = merged;
     broadcast('macros:changed', macros);
+    scheduleTrayRefresh();
     refreshMacroShortcuts();
     return { ok: true, added, skipped };
   } catch (err) {
     return { ok: false, error: err instanceof SyntaxError ? 'That file isn’t valid JSON.' : err.message };
   }
+}
+
+ipcMain.handle('macros:import', async () => {
+  const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import Macros',
+    filters: [{ name: 'Macro Manager file', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (canceled || !filePaths.length) return { ok: false };
+  try {
+    return importMacroText(fs.readFileSync(filePaths[0], 'utf-8'));
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
+// A file dropped on the window: the renderer reads it and sends the text.
+ipcMain.handle('macros:importText', (_e, text) => importMacroText(String(text ?? '')));
 
 ipcMain.handle('app:openDataFolder', () => shell.openPath(store.paths.dir));
 ipcMain.handle('app:openReleases', () => shell.openExternal(RELEASES_URL));
