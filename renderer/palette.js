@@ -249,6 +249,7 @@ function showFill(macro, { action, fromList }) {
 }
 
 async function submitFill(values) {
+  if (!fill) return;
   const { macro, action, fromList } = fill;
   if (!fromList) return api.paletteFill(values);
   if (action === 'copy') return copyMacro(macro, values);
@@ -258,8 +259,8 @@ async function submitFill(values) {
 function cancelFill() {
   const back = fill && fill.fromList;
   fill = null;
-  if (!back) { api.paletteClose(); return; }
   renderMode();
+  if (!back) { api.paletteClose(); return; }
   q.focus();
 }
 
@@ -332,6 +333,10 @@ async function refresh() {
 api.onPaletteOpen(async (opts) => {
   mode = opts?.mode || 'insert';
   fill = null;
+  // The window keeps its last page while hidden, and is already on screen by
+  // now. Clear the last prompt before the await, or it shows (and takes an
+  // Enter that goes nowhere) until refresh() comes back.
+  renderMode();
   await refresh();
   q.value = '';
   build();
