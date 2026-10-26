@@ -1,6 +1,6 @@
 {
   "name": "macro-manager",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Type a short abbreviation anywhere and it expands into your saved text. Mac and Windows.",
   "main": "main.js",
   "scripts": {
