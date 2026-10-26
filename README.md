@@ -98,7 +98,7 @@ Two numbers do leave it, about once an hour: how many macros you expanded and ho
 - **Nothing in a report says who you are.** No name, email, account or computer name. The random ID only stops the same count being added twice.
 
 - Nothing is sent until you've answered the notice the app shows the first time.
-- **Settings → Your data → Add to the total** turns it off. Turning it back on doesn't send what happened while it was off.
+- **Settings → Your data → Anonymous usage count** turns it off. Turning it back on doesn't send what happened while it was off.
 - Offline, it waits and sends the difference next time it can. The app works the same either way.
 - The code is [`lib/report.js`](lib/report.js), and `report.json` in the data folder is everything it keeps.
 
