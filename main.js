@@ -9,6 +9,7 @@ const { createExpander, writeExpansion } = require('./lib/expander');
 const { BUILT_INS, TOKENS } = require('./lib/placeholders');
 const { renderExpansion } = require('./lib/format');
 const { fieldsFor } = require('./lib/fields');
+const { normalizeAccel, sameAccel, shortcutProblem, statKey } = require('./lib/shortcuts');
 const { createReporter } = require('./lib/report');
 
 const IS_MAC = process.platform === 'darwin';
@@ -297,7 +298,7 @@ function showPalette(mode = 'insert', fill = null) {
 let pendingFill = null;
 
 function openFill(macro, { deleteCount = 0, action = 'paste' } = {}) {
-  const snapshot = { title: macro.title, abbr: macro.abbr, content: macro.content, format: macro.format, fields: macro.fields };
+  const snapshot = { title: macro.title, abbr: macro.abbr, shortcut: macro.shortcut, content: macro.content, format: macro.format, fields: macro.fields };
   showPalette('fill', { macro: snapshot, action });
   pendingFill = { macro: snapshot, deleteCount, action };
 }
@@ -309,7 +310,7 @@ function pasteMacro(macro, { deleteCount = 0, values } = {}) {
   // Wait for focus to land back in the previous app before pasting.
   setTimeout(() => {
     expander.paste(String(macro.content ?? ''), deleteCount, { format: macro.format, values })
-      .then((chars) => recordUse({ abbr: macro.abbr || null, chars }))
+      .then((chars) => recordUse({ abbr: statKey(macro) || null, chars }))
       .catch((err) => console.error('[palette] insert failed:', err));
   }, IS_MAC ? 180 : 140);
 }
@@ -336,10 +337,16 @@ function hidePalette() {
 // Global shortcuts
 // ---------------------------------------------------------------------------
 let shortcutErrors = {};
+// Macro shortcuts that couldn't be registered: { accelerator: why }. Ones
+// that clash with another macro or with Macro Manager's own are flagged in
+// the editor instead, and only the first macro gets the keys.
+let macroShortcutErrors = {};
+let registeredMacroShortcuts = '';
 
 function registerShortcuts() {
   globalShortcut.unregisterAll();
   shortcutErrors = {};
+  macroShortcutErrors = {};
   const pairs = [
     ['quickInsertShortcut', () => showPalette('insert')],
     ['openWindowShortcut', toggleWindow],
@@ -353,6 +360,57 @@ function registerShortcuts() {
       shortcutErrors[key] = 'That shortcut isn’t supported.';
     }
   }
+
+  // Paused means no macro does anything, so their keys go back to other apps.
+  registeredMacroShortcuts = macroShortcutList().join('|');
+  if (settings.paused) return;
+  for (const accel of macroShortcutList()) {
+    if (shortcutProblem(accel) || [settings.quickInsertShortcut, settings.openWindowShortcut].some((s) => sameAccel(s, accel))) continue;
+    try {
+      if (!globalShortcut.register(accel, () => onMacroShortcut(accel))) macroShortcutErrors[accel] = 'Another app is already using this shortcut.';
+    } catch {
+      macroShortcutErrors[accel] = 'That shortcut isn’t supported.';
+    }
+  }
+}
+
+// Each macro shortcut once, in the order the macros are listed.
+function macroShortcutList() {
+  const out = [];
+  for (const m of macros.snippets) {
+    const accel = normalizeAccel(m.shortcut);
+    if (accel && !out.some((a) => sameAccel(a, accel))) out.push(accel);
+  }
+  return out;
+}
+
+// After macros change: register again only if the set of shortcuts changed,
+// and let the editor know what didn't work.
+function refreshMacroShortcuts() {
+  if (macroShortcutList().join('|') === registeredMacroShortcuts) return;
+  registerShortcuts();
+  broadcast('settings:changed', publicSettings());
+}
+
+function onMacroShortcut(accel) {
+  const index = macros.snippets.findIndex((s) => sameAccel(s.shortcut, accel));
+  const m = macros.snippets[index];
+  if (!m || !m.content.trim() || settings.paused) return;
+  // In Macro Manager itself there's nowhere to paste; the editor's Try it box
+  // takes it instead. The smoke test presses shortcuts in the app on purpose.
+  const focused = !SMOKE_TEST && BrowserWindow.getFocusedWindow();
+  if (focused) {
+    if (focused === mainWindow) mainWindow.webContents.send('macro:shortcut', index);
+    return;
+  }
+  if (fieldsFor(m).length) {
+    // Let go of the keys first: they'd otherwise land in the prompt.
+    expander.modifiersReleased().then(() => openFill(m));
+    return;
+  }
+  expander.pasteFromShortcut(m.content, { format: m.format })
+    .then((chars) => { if (chars !== null) recordUse({ abbr: statKey(m), chars }); })
+    .catch((err) => console.error('[shortcut] paste failed:', err));
 }
 
 // ---------------------------------------------------------------------------
@@ -394,19 +452,19 @@ function prettyAccel(accel) {
 async function copyFromTray(m, values) {
   if (!values && fieldsFor(m).length) { openFill(m, { action: 'copy' }); return; }
   const { text } = await copyMacro(m, values);
-  recordUse({ abbr: m.abbr, chars: Array.from(text).length });
+  recordUse({ abbr: statKey(m), chars: Array.from(text).length });
   if (Notification.isSupported()) {
-    new Notification({ title: `Copied “${m.title || m.abbr}”`, body: `Paste it with ${IS_MAC ? '⌘V' : 'Ctrl+V'}.`, silent: true }).show();
+    new Notification({ title: `Copied “${m.title || m.abbr || 'Untitled'}”`, body: `Paste it with ${IS_MAC ? '⌘V' : 'Ctrl+V'}.`, silent: true }).show();
   }
 }
 
 // Pinned macros first, then the most used, up to eight.
 function quickAccessMacros() {
   const usage = store.loadUsage();
-  const usable = macros.snippets.filter((m) => m.abbr && m.content.trim());
+  const usable = macros.snippets.filter((m) => statKey(m) && m.content.trim());
   const pinned = usable.filter((m) => m.pinned);
-  const rest = usable.filter((m) => !m.pinned && usage[m.abbr])
-    .sort((a, b) => (usage[b.abbr] || 0) - (usage[a.abbr] || 0));
+  const rest = usable.filter((m) => !m.pinned && usage[statKey(m)])
+    .sort((a, b) => (usage[statKey(b)] || 0) - (usage[statKey(a)] || 0));
   return { pinned, popular: rest.slice(0, Math.max(0, 8 - pinned.length)) };
 }
 
@@ -417,7 +475,7 @@ function updateTrayMenu() {
   const { pinned, popular } = quickAccessMacros();
   const macroItem = (m) => ({
     // Windows right-aligns text after a tab; macOS would show it literally.
-    label: `${m.title || 'Untitled'}${IS_MAC ? '   ' : '\t'}${macros.prefix}${m.abbr}`,
+    label: `${m.title || 'Untitled'}${IS_MAC ? '   ' : '\t'}${m.abbr ? macros.prefix + m.abbr : prettyAccel(m.shortcut)}`,
     click: () => copyFromTray(m).catch((err) => console.error('[tray] copy failed:', err)),
   });
 
@@ -526,7 +584,7 @@ function applySettings(patch) {
   if (sharingResumed) reporter.rebase();
   if (sharingResumed || noticeAnswered) reporter.soon();
   if (rest.theme) nativeTheme.themeSource = rest.theme;
-  if ('quickInsertShortcut' in rest || 'openWindowShortcut' in rest) registerShortcuts();
+  if ('quickInsertShortcut' in rest || 'openWindowShortcut' in rest || 'paused' in rest) registerShortcuts();
   updateTrayMenu();
   const snapshot = publicSettings();
   broadcast('settings:changed', snapshot);
@@ -534,7 +592,7 @@ function applySettings(patch) {
 }
 
 function publicSettings() {
-  return { ...settings, launchAtLogin: getLaunchAtLogin(), shortcutErrors };
+  return { ...settings, launchAtLogin: getLaunchAtLogin(), shortcutErrors, macroShortcutErrors };
 }
 
 // ---------------------------------------------------------------------------
@@ -687,6 +745,7 @@ ipcMain.handle('macros:save', (e, data) => {
   macros = store.saveMacros(data);
   broadcast('macros:changed', macros, e.sender);
   scheduleTrayRefresh(); // pinned macros live in the tray menu
+  refreshMacroShortcuts();
   return macros;
 });
 
@@ -734,6 +793,7 @@ ipcMain.handle('macros:import', async () => {
     const { merged, added, skipped } = store.mergeImport(incoming);
     macros = merged;
     broadcast('macros:changed', macros);
+    refreshMacroShortcuts();
     return { ok: true, added, skipped };
   } catch (err) {
     return { ok: false, error: err instanceof SyntaxError ? 'That file isn’t valid JSON.' : err.message };
@@ -755,8 +815,8 @@ ipcMain.handle('menu:popup', (e, items) => popupMenu(BrowserWindow.fromWebConten
 
 // Palette → insert a macro into whatever app was focused before. `values`
 // are the fill-in answers when it has fields.
-ipcMain.handle('palette:insert', (_e, { content, abbr, format, fields, values }) => {
-  pasteMacro({ content, abbr, format, fields }, { values: values || undefined });
+ipcMain.handle('palette:insert', (_e, { content, abbr, shortcut, format, fields, values }) => {
+  pasteMacro({ content, abbr, shortcut, format, fields }, { values: values || undefined });
 });
 // The fill-in prompt was submitted for the macro main asked about.
 ipcMain.handle('palette:fill', async (_e, values) => {
@@ -770,6 +830,7 @@ ipcMain.handle('palette:fill', async (_e, values) => {
   }
   pasteMacro(macro, { deleteCount, values: values || {} });
 });
+// `abbr` is the macro's stat key (lib/shortcuts.js statKey), null for a built-in.
 ipcMain.handle('palette:copied', (_e, { abbr, chars }) => {
   recordUse({ abbr: abbr || null, chars: Number(chars) || 0 });
 });
@@ -925,6 +986,7 @@ function runSmokeTest() {
       { title: 'Smoke', abbr: 'smoke', content: 'Smoke test {date}' },
       { title: 'Rich', abbr: 'smokerich', format: 'rich', content: '**Bold** and [a link](https://example.com)' },
       { title: 'Fill', abbr: 'smokefill', content: 'Hi {field:Name}, unit {field:Unit}', fields: [{ label: 'Unit', choices: ['2A', '4B'] }] },
+      { title: 'Keys', abbr: '', shortcut: 'Control+Alt+F9', content: 'Pasted by shortcut' },
     ] };
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const type = (word) => {
@@ -998,6 +1060,28 @@ function runSmokeTest() {
     if (await clipboard.readText() !== sentinel) return fail('clipboard not restored after the fill-in expansion');
     if (!(store.loadFieldMemory().name || []).includes('Jane')) return fail('fill-in answer not remembered');
     console.log('[smoke] fill-in prompt opened, Esc left it alone, Enter pasted the answers');
+
+    // 4. A macro with only a shortcut: registered, waits for Ctrl and Alt to
+    //    come up before pasting, and is counted under its shortcut.
+    const accel = 'Control+Alt+F9';
+    registerShortcuts();
+    if (!globalShortcut.isRegistered(accel) && !macroShortcutErrors[accel]) return fail('macro shortcut was not registered');
+    sentinel = `smoke-keys-${Date.now()}`;
+    await clipboard.writeText(sentinel);
+    for (const code of [K.Ctrl, K.Alt]) uIOhook.emit('keydown', { keycode: code, ctrlKey: true, altKey: true });
+    onMacroShortcut(accel);
+    await sleep(400);
+    if (await clipboard.readText() !== sentinel) return fail('shortcut pasted while Ctrl and Alt were still held');
+    for (const code of [K.Alt, K.Ctrl]) uIOhook.emit('keyup', { keycode: code });
+    const keyed = await catchPaste(sentinel);
+    await sleep(2000);
+    if (!keyed || keyed.text !== 'Pasted by shortcut') return fail(`shortcut paste wrong (got ${JSON.stringify(keyed)})`);
+    if (uses(`shortcut:${accel}`) !== 1) return fail('shortcut paste not recorded');
+    if (await clipboard.readText() !== sentinel) return fail('clipboard not restored after the shortcut paste');
+    applySettings({ paused: true });
+    if (globalShortcut.isRegistered(accel)) return fail('macro shortcut still registered while paused');
+    applySettings({ paused: false });
+    console.log('[smoke] shortcut waited for the keys, pasted, was recorded, and let go while paused');
 
     console.log(`[smoke] OK — v${app.getVersion()} on ${process.platform}`);
     app.exit(0);

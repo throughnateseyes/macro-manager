@@ -32,6 +32,17 @@ function score(item, query) {
 }
 
 const RECENT_SHOWN = 5;
+
+// How a result is triggered: its abbreviation, or for a macro that only has
+// a shortcut, the shortcut (Ctrl+Alt+T, ⌃⌥T on a Mac).
+function triggerLabel(it) {
+  if (it.abbr) return state.macros.prefix + it.abbr;
+  const p = parseAccel(it.shortcut);
+  if (!p) return '';
+  if (state.platform !== 'darwin') return [...p.mods.map((m) => (m === 'Control' ? 'Ctrl' : m === 'Super' ? 'Win' : m)), p.key].join('+');
+  const sym = { Command: '⌘', Super: '⌘', Control: '⌃', Alt: '⌥', Shift: '⇧' };
+  return p.mods.map((m) => sym[m]).join('') + p.key;
+}
 const SECTION_LABELS = { pinned: 'Pinned', recent: 'Recent', all: 'All macros', builtin: 'Date &amp; Time' };
 
 // Newest first, one entry per abbreviation (stats.json → recent).
@@ -48,9 +59,10 @@ function build() {
   const recentRank = new Map();
   recent.forEach((r, i) => { if (!recentRank.has(r.abbr)) recentRank.set(r.abbr, i); });
 
+  // `key` is what usage and recents are counted under (lib/shortcuts.js).
   const mine = state.macros.snippets
-    .map((m, index) => ({ ...m, index, uses: state.usage[m.abbr] || 0 }))
-    .filter((m) => m.abbr && m.content.trim());
+    .map((m, index) => ({ ...m, index, key: statKey(m), uses: state.usage[statKey(m)] || 0 }))
+    .filter((m) => m.key && m.content.trim());
   const builtIns = state.builtIns
     .filter((b) => !mine.some((m) => m.abbr.toLowerCase() === b.abbr))
     .map((b) => ({ title: b.title, abbr: b.abbr, content: `{${b.abbr}}`, sub: b.desc, builtIn: true, uses: 0, section: 'builtin' }));
@@ -60,7 +72,7 @@ function build() {
     // match tier; the boost (at most 5) never jumps a tier (gaps of 10+).
     const boost = (it) => {
       if (it.builtIn) return 0;
-      const r = recentRank.get(it.abbr);
+      const r = recentRank.get(it.key);
       return (it.pinned ? 3 : 0) + (r === undefined ? 0 : 2 * (1 - r / Math.max(recent.length, 1)));
     };
     items = [...mine, ...builtIns]
@@ -78,7 +90,7 @@ function build() {
     const recents = [];
     for (const r of recent) {
       if (recents.length >= RECENT_SHOWN) break;
-      const m = mine.find((x) => x.abbr === r.abbr && !x.pinned && !taken.has(x.index));
+      const m = mine.find((x) => x.key === r.abbr && !x.pinned && !taken.has(x.index));
       if (!m) continue;
       taken.add(m.index);
       recents.push({ ...m, section: 'recent', at: r.at });
@@ -136,7 +148,7 @@ function render() {
         <div class="title">${esc(it.title || 'Untitled')}${it.pinned ? ' <span class="pin">●</span>' : ''}</div>
         <div class="sub">${esc(it.builtIn ? it.sub : oneLine(readableText(it)).slice(0, 120))}</div>
       </div>
-      ${when}<span class="chip">${esc(state.macros.prefix + it.abbr)}</span>`;
+      ${when}<span class="chip">${esc(triggerLabel(it))}</span>`;
     row.addEventListener('mousemove', () => { if (active !== i) { active = i; paintActive(); } });
     row.addEventListener('click', () => insert(i));
     row.addEventListener('contextmenu', (e) => resultMenu(i, e));
@@ -165,7 +177,7 @@ function insert(i = active) {
   if (mode === 'tray') return copy(i);
   if (mode === 'app') return it.builtIn ? copy(i) : api.paletteOpenMacro(it.index);
   if (!it.builtIn && fieldsFor(it).length) return showFill(it, { action: 'insert', fromList: true });
-  api.paletteInsert({ content: it.content, abbr: it.builtIn ? null : it.abbr, format: it.format });
+  api.paletteInsert({ content: it.content, abbr: it.builtIn ? null : it.abbr, shortcut: it.shortcut, format: it.format });
 }
 
 // Right-click a result: the same verbs as the footer, plus pinning.
@@ -207,7 +219,7 @@ async function copy(i = active) {
 // Both flavours for a formatted macro, like a paste.
 async function copyMacro(m, values) {
   const { text } = await api.copyExpansion({ content: m.content, format: m.format, fields: m.fields, values, remember: Boolean(values) });
-  api.paletteCopied({ abbr: m.builtIn ? null : m.abbr, chars: Array.from(text).length });
+  api.paletteCopied({ abbr: m.builtIn ? null : statKey(m), chars: Array.from(text).length });
   api.paletteClose();
 }
 
@@ -229,7 +241,7 @@ function showFill(macro, { action, fromList }) {
     onCancel: cancelFill,
   });
   document.getElementById('fill-title').textContent = macro.title || 'Untitled';
-  document.getElementById('fill-abbr').textContent = state.macros.prefix + macro.abbr;
+  document.getElementById('fill-abbr').textContent = triggerLabel(macro);
   document.getElementById('fill-fields').replaceChildren(form.el);
   renderMode();
   showFillPreview(form.values());
@@ -240,7 +252,7 @@ async function submitFill(values) {
   const { macro, action, fromList } = fill;
   if (!fromList) return api.paletteFill(values);
   if (action === 'copy') return copyMacro(macro, values);
-  api.paletteInsert({ content: macro.content, abbr: macro.abbr, format: macro.format, fields: macro.fields, values });
+  api.paletteInsert({ content: macro.content, abbr: macro.abbr, shortcut: macro.shortcut, format: macro.format, fields: macro.fields, values });
 }
 
 function cancelFill() {
@@ -309,7 +321,7 @@ document.addEventListener('keydown', (e) => {
 
 async function refresh() {
   const s = await api.getState();
-  state = { macros: s.macros, usage: s.usage, builtIns: s.builtIns, stats: s.stats, fieldMemory: s.fieldMemory || {} };
+  state = { macros: s.macros, usage: s.usage, builtIns: s.builtIns, stats: s.stats, fieldMemory: s.fieldMemory || {}, platform: s.platform };
   document.body.classList.add(s.platform === 'darwin' ? 'mac' : 'win');
   if (s.platform !== 'darwin') {
     document.getElementById('k-copy').textContent = 'Ctrl+C';

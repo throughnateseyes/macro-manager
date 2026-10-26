@@ -37,8 +37,9 @@ function finalizeDelete() {
   const { macro } = pendingDelete;
   pendingDelete = null;
   // Usage history goes only once the delete is final, so Undo restores it.
-  if (macro.abbr && !state.macros.snippets.some((s) => s.abbr === macro.abbr)) {
-    api.deleteUsage(macro.abbr).then((u) => { state.usage = u; });
+  const key = statKey(macro);
+  if (key && !state.macros.snippets.some((s) => statKey(s) === key)) {
+    api.deleteUsage(key).then((u) => { state.usage = u; });
   }
 }
 
@@ -52,7 +53,7 @@ async function deleteMacro(index = state.selected) {
   await persistAll();
   shiftSelectionAfterRemoval(index);
   render();
-  const empty = !m.title && !m.abbr && !m.content;
+  const empty = !m.title && !m.abbr && !m.shortcut && !m.content;
   if (empty) return;
   const UNDO_MS = 8000;
   pendingDelete = { macro: m, index, timer: setTimeout(finalizeDelete, UNDO_MS) };
@@ -83,6 +84,7 @@ async function duplicateMacro(index = state.selected) {
   for (let n = 3; abbr && state.macros.snippets.some((s) => s.abbr.toLowerCase() === abbr.toLowerCase()); n++) abbr = `${m.abbr}${n}`;
   const copy = { ...m, title: `${m.title || 'Untitled'} copy`, abbr };
   delete copy.pinned;
+  delete copy.shortcut; // one set of keys can only paste one macro
   state.macros.snippets.splice(index + 1, 0, copy);
   if (state.view === 'editor' && index + 1 <= state.selected) state.selected += 1;
   await persistAll();

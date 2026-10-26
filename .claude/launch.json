@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["dev/serve.py"],
       "port": 5180
+    },
+    {
+      "name": "renderer-preview-node",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dev/serve.js"],
+      "port": 5180
     }
   ]
 }

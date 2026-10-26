@@ -14,15 +14,16 @@
     { title: 'Follow-up', abbr: 'fu', content: 'Hi {cursor}, just following up on my last note. Let me know if you have any questions!' },
     { title: 'Office Address', abbr: 'addr', content: '123 Market St, Suite 400\nSan Francisco, CA 94103', folder: 'Leasing' },
     {
-      title: 'Tour Confirmation', abbr: 'tour', folder: 'Leasing', pinned: true, format: 'rich',
+      title: 'Tour Confirmation', abbr: 'tour', shortcut: 'Control+Alt+T', folder: 'Leasing', pinned: true, format: 'rich',
       content: 'Hi {field:Resident name},\n\nThanks for booking a tour of **unit {field:Unit}** on {date+2}. A few things before you come:\n\n- Street parking is free after 6 pm\n- Bring a photo ID\n- [Directions to the leasing office](https://maps.example.com/brick-timber)\n\nSee you then,\n{field:Agent}',
       fields: [{ label: 'Unit', choices: ['2A', '4B', '7C', '12F'] }, { label: 'Agent', default: 'Nate' }],
     },
     { title: 'Application Received', abbr: 'app', content: 'We received your application on {date} and will be in touch within 2 business days.', folder: 'Leasing' },
     { title: 'Zoom Link', abbr: 'zoom', content: 'https://zoom.us/j/1234567890' },
+    { title: 'Wi-Fi Password', abbr: '', shortcut: 'Control+Alt+W', content: 'Network: BT-Guest  ·  Password: welcome2026', folder: 'Residents' },
     { title: 'Maintenance Reply', abbr: 'mr', content: 'Thanks for letting us know — a technician will reach out to schedule a visit.', folder: 'Residents' },
   ];
-  const usage = params.has('empty') ? {} : { sig: 342, fu: 231, addr: 112, tour: 458, app: 77, zoom: 41, mr: 196 };
+  const usage = params.has('empty') ? {} : { sig: 342, fu: 231, addr: 112, tour: 458, app: 77, zoom: 41, mr: 196, 'shortcut:Control+Alt+W': 23 };
 
   // Fake ~20 weeks of history with weekday-heavy usage.
   const days = {};
@@ -75,7 +76,7 @@
 
   let data = { prefix: '/', snippets };
   let settings = {
-    theme: 'system', paused: false, launchAtLogin: true, shortcutErrors: {},
+    theme: 'system', paused: false, launchAtLogin: true, shortcutErrors: {}, macroShortcutErrors: {},
     shareUsage: true, usageNoticeSeen: !params.has('notice'), // ?notice shows the first-run banner
     quickInsertShortcut: params.get('platform') === 'win32' ? 'Control+Alt+Space' : 'Command+Shift+Space',
     openWindowShortcut: params.get('platform') === 'win32' ? 'Control+Alt+M' : 'Command+Shift+M',
@@ -105,7 +106,7 @@
     requestAccessibility: async () => true, showPalette: async () => {},
     paletteInsert: async () => {}, paletteClose: async () => {}, paletteCopied: async () => {}, paletteOpenMacro: async () => {},
     onMacrosChanged: noop, onStatsChanged: noop, onSettingsChanged: noop, onUpdateState: noop,
-    onNavigate: noop, onAccessibility: noop,
+    onNavigate: noop, onAccessibility: noop, onMacroShortcut: noop,
     onPaletteOpen: (cb) => {
       const mode = params.get('mode') || 'insert';
       const fill = mode === 'fill' ? { macro: data.snippets.find((m) => m.abbr === 'tour'), action: 'paste' } : undefined;

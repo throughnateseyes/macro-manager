@@ -21,7 +21,8 @@ Written before any of the formatting or fill-in code, because v1 shipped Bold/It
         { "label": "Resident name" },
         { "label": "Unit", "choices": ["2A", "4B", "7C"] },
         { "label": "Agent", "default": "Nate" }
-      ]
+      ],
+      "shortcut": "Control+Alt+T"   // optional: keys that paste this macro
     }
   ]
 }
@@ -30,7 +31,8 @@ Written before any of the formatting or fill-in code, because v1 shipped Bold/It
 - **`content` stays a string.** No HTML is ever stored. A macro without `format` is plain text and behaves exactly as it did in 2.1.
 - **`format: "rich"`** is set the first time someone uses a formatting control on that macro, and can be switched back to plain in the editor. Existing macros are never converted, so a 2.1 macro that happens to contain `*` or `- ` keeps pasting those characters.
 - **`fields`** only adds settings. The tokens in `content` are what make a field exist: a `{field:Unit}` typed by hand with no entry in `fields` is still asked for, with an empty box. An entry whose token was deleted is kept (so undo in the text box brings the field back whole) and simply never asked for.
-- Older builds read the file fine. They ignore `format` and `fields`, and would paste `**` and `{field:Unit}` literally.
+- **`shortcut`** is an Electron accelerator. A macro needs an abbreviation, a shortcut, or both; `abbr` is `""` when it only has a shortcut. See [Shortcuts](#shortcuts).
+- Older builds read the file fine. They ignore `format`, `fields` and `shortcut`, and would paste `**` and `{field:Unit}` literally. A macro with only a shortcut shows up there with no abbreviation.
 
 `lib/store.js` normalises both keys on every load and save: `format` is kept only when it is exactly `"rich"`; `fields` keeps entries with a valid label, trims everything, drops empty and duplicate choices, and is removed when empty.
 
@@ -74,3 +76,14 @@ A plain macro writes `text/plain` only, exactly like 2.1. A rich macro writes **
 `{cursor}` is counted against what the rich app shows (list markers aren't characters there; each line is one press). When `{cursor}` sits above a list in a formatted macro, a plain-text app may land the caret two characters per list item off. Put `{cursor}` after lists, or keep that macro plain.
 
 When a macro has fields, typing its abbreviation opens the fill-in prompt (the Quick Insert window) before anything is erased. Enter erases the abbreviation and pastes; Esc leaves what you typed alone. A macro with no fields expands exactly as before, with no prompt.
+
+## Shortcuts
+
+`shortcut` is registered as a global shortcut (`lib/shortcuts.js` holds the rules, `main.js` `registerShortcuts()` the registration):
+
+- **Two modifiers and a key**, e.g. Ctrl + Alt + T or ⌘ ⌥ T, or one modifier with an F-key. A global shortcut takes its keys over in every app, so Ctrl + B alone would stop Bold working in Word and Outlook. The editor refuses anything else while recording.
+- **One macro per combination.** The first macro in the list gets the keys and the others are flagged in the editor, as with a shared abbreviation. Quick Insert's and Open Macro Manager's own shortcuts win over a macro's. One another app already holds is flagged with what registration reported.
+- **Pressing it pastes once the keys are let go.** The keyboard hook tracks held modifiers, and the paste waits for them (at most 3 seconds) so Ctrl + Alt + V never reaches the app (Paste Special in Word). Nothing is erased first. A macro with fields opens the prompt instead, as an abbreviation does.
+- **Paused releases the keys** to other apps. Inside Macro Manager a shortcut does nothing, except in the editor's Try it box, where it expands like everywhere else.
+- **Stats** are counted under the abbreviation as before. A macro with only a shortcut is counted under `shortcut:<accelerator>` (`statKey()`), and adding, changing or removing either one moves its history along, the way renaming an abbreviation always has.
+- **Import** skips a macro whose abbreviation you already have (as before), drops an incoming shortcut you already use, and skips a macro left with neither.
