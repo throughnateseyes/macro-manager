@@ -93,6 +93,25 @@ const ICON = {
   numbers:   '<svg class="icon" viewBox="0 0 16 16"><path d="M7 4h6.5M7 8h6.5M7 12h6.5"/><path d="M2.6 2.9 3.6 2.4v3.3M2.4 9.2c.2-.6.7-.8 1.1-.8.5 0 .9.3.9.8 0 .7-1.2 1.4-2 2.4h2.1" stroke-width="1.2"/></svg>',
 };
 
+// On Windows the toolbar, sidebar and footer use Microsoft's Fluent System
+// Icons (MIT, github.com/microsoft/fluentui-system-icons), the set Windows 11
+// itself draws with, instead of the hand-drawn outlines above, which look thin
+// and out of place there. Filled shapes, so they're drawn with .icon.fl.
+const WIN_ICON = {
+  test:      '<svg class="icon fl" viewBox="0 0 20 20"><path d="M17.2204 8.68703C18.2558 9.25661 18.2558 10.7434 17.2204 11.313L7.2234 16.812C6.22371 17.362 5 16.6393 5 15.4991L5 4.50093C5 3.36068 6.22371 2.63805 7.2234 3.18795L17.2204 8.68703ZM16.7381 10.4377C17.0833 10.2478 17.0833 9.7522 16.7381 9.56234L6.74113 4.06327C6.4079 3.87997 6 4.12084 6 4.50093L6 15.4991C6 15.8792 6.4079 16.12 6.74114 15.9367L16.7381 10.4377Z"/></svg>',
+  pin:       '<svg class="icon fl" viewBox="0 0 20 20"><path d="M10.1221 3.13715C10.7326 1.91616 12.3599 1.65208 13.3251 2.61737L17.382 6.67419C18.3472 7.63947 18.0832 9.26676 16.8622 9.87726L13.4037 11.6065C13.0751 11.7708 12.8183 12.0499 12.6818 12.391L11.2459 15.981C10.9792 16.6476 10.1179 16.8244 9.61027 16.3167L7 13.7064L3.70711 16.9993H3V16.2922L6.29289 12.9993L3.68262 10.3891C3.17498 9.88142 3.35177 9.02011 4.01834 8.75348L7.60829 7.3175C7.94939 7.18106 8.22855 6.92419 8.39285 6.5956L10.1221 3.13715ZM12.618 3.32447C12.1354 2.84183 11.3217 2.97387 11.0165 3.58437L9.28727 7.04282C9.01345 7.59046 8.54818 8.01858 7.97968 8.24598L4.38973 9.68196L10.3174 15.6096L11.7534 12.0197C11.9808 11.4512 12.4089 10.9859 12.9565 10.7121L16.415 8.98283C17.0255 8.67758 17.1575 7.86394 16.6749 7.3813L12.618 3.32447Z"/></svg>',
+  pinFill:   '<svg class="icon fl" viewBox="0 0 20 20"><path d="M13.3251 2.61737C12.3599 1.65208 10.7326 1.91616 10.1221 3.13715L8.39285 6.5956C8.22855 6.92419 7.94939 7.18106 7.60829 7.3175L4.01834 8.75348C3.35177 9.02011 3.17498 9.88142 3.68262 10.3891L6.29289 12.9993L3 16.2922V16.9993H3.70711L7 13.7064L9.61027 16.3167C10.1179 16.8244 10.9792 16.6476 11.2459 15.981L12.6818 12.391C12.8183 12.0499 13.0751 11.7708 13.4037 11.6065L16.8622 9.87726C18.0832 9.26676 18.3472 7.63947 17.382 6.67419L13.3251 2.61737Z"/></svg>',
+  copy:      '<svg class="icon fl" viewBox="0 0 20 20"><path d="M7 7H5.5C4.67157 7 4 7.67157 4 8.5V14.5C4 15.3284 4.67157 16 5.5 16H9.5C10.1529 16 10.707 15.5823 10.9131 15H11.9502C11.7186 16.1411 10.7095 17 9.5 17H5.5C4.11929 17 3 15.8807 3 14.5V8.5C3 7.11929 4.11929 6 5.5 6H7V7ZM14.5 3C15.8807 3 17 4.11929 17 5.5V11.5C17 12.8807 15.8807 14 14.5 14H10.5C9.11929 14 8 12.8807 8 11.5V5.5C8 4.11929 9.11929 3 10.5 3H14.5ZM10.5 4C9.67157 4 9 4.67157 9 5.5V11.5C9 12.3284 9.67157 13 10.5 13H14.5C15.3284 13 16 12.3284 16 11.5V5.5C16 4.67157 15.3284 4 14.5 4H10.5Z"/></svg>',
+  duplicate: '<svg class="icon fl" viewBox="0 0 20 20"><path d="M14.5 10C16.9853 10 19 12.0147 19 14.5C19 16.9853 16.9853 19 14.5 19C12.0147 19 10 16.9853 10 14.5C10 12.0147 12.0147 10 14.5 10ZM7 7H5.5C4.67157 7 4 7.67157 4 8.5V14.5C4 15.3284 4.67157 16 5.5 16H9.20801C9.30616 16.347 9.43773 16.6797 9.59863 16.9951C9.56587 16.9964 9.53307 17 9.5 17H5.5C4.11929 17 3 15.8807 3 14.5V8.5C3 7.11929 4.11929 6 5.5 6H7V7ZM14.5 12C14.2239 12 14 12.2239 14 12.5V14H12.5C12.2239 14 12 14.2239 12 14.5C12 14.7761 12.2239 15 12.5 15H14V16.5C14 16.7761 14.2239 17 14.5 17C14.7761 17 15 16.7761 15 16.5V15H16.5C16.7761 15 17 14.7761 17 14.5C17 14.2239 16.7761 14 16.5 14H15V12.5C15 12.2239 14.7761 12 14.5 12ZM14.5 3C15.8807 3 17 4.11929 17 5.5V9.60059C16.6832 9.4386 16.3487 9.30664 16 9.20801V5.5C16 4.67157 15.3284 4 14.5 4H10.5C9.67157 4 9 4.67157 9 5.5V11.5C9 11.8819 9.14392 12.2293 9.37891 12.4941C9.24583 12.8336 9.14469 13.1891 9.08105 13.5576C8.42821 13.1066 8 12.3536 8 11.5V5.5C8 4.11929 9.11929 3 10.5 3H14.5Z"/></svg>',
+  trash:     '<svg class="icon fl" viewBox="0 0 20 20"><path d="M8.5 4H11.5C11.5 3.17157 10.8284 2.5 10 2.5C9.17157 2.5 8.5 3.17157 8.5 4ZM7.5 4C7.5 2.61929 8.61929 1.5 10 1.5C11.3807 1.5 12.5 2.61929 12.5 4H17.5C17.7761 4 18 4.22386 18 4.5C18 4.77614 17.7761 5 17.5 5H16.4456L15.2521 15.3439C15.0774 16.8576 13.7957 18 12.2719 18H7.72813C6.20431 18 4.92256 16.8576 4.7479 15.3439L3.55437 5H2.5C2.22386 5 2 4.77614 2 4.5C2 4.22386 2.22386 4 2.5 4H7.5ZM5.74131 15.2292C5.85775 16.2384 6.71225 17 7.72813 17H12.2719C13.2878 17 14.1422 16.2384 14.2587 15.2292L15.439 5H4.56101L5.74131 15.2292ZM8.5 7.5C8.77614 7.5 9 7.72386 9 8V14C9 14.2761 8.77614 14.5 8.5 14.5C8.22386 14.5 8 14.2761 8 14V8C8 7.72386 8.22386 7.5 8.5 7.5ZM12 8C12 7.72386 11.7761 7.5 11.5 7.5C11.2239 7.5 11 7.72386 11 8V14C11 14.2761 11.2239 14.5 11.5 14.5C11.7761 14.5 12 14.2761 12 14V8Z"/></svg>',
+  pause:     '<svg class="icon fl" viewBox="0 0 20 20"><path d="M5 2C3.89543 2 3 2.89543 3 4V16C3 17.1046 3.89543 18 5 18H7C8.10457 18 9 17.1046 9 16V4C9 2.89543 8.10457 2 7 2H5ZM4 4C4 3.44772 4.44772 3 5 3H7C7.55228 3 8 3.44772 8 4V16C8 16.5523 7.55228 17 7 17H5C4.44772 17 4 16.5523 4 16V4ZM13 2C11.8954 2 11 2.89543 11 4V16C11 17.1046 11.8954 18 13 18H15C16.1046 18 17 17.1046 17 16V4C17 2.89543 16.1046 2 15 2H13ZM12 4C12 3.44772 12.4477 3 13 3H15C15.5523 3 16 3.44772 16 4V16C16 16.5523 15.5523 17 15 17H13C12.4477 17 12 16.5523 12 16V4Z"/></svg>',
+  play:      '<svg class="icon fl" viewBox="0 0 20 20"><path d="M17.2221 8.68458C18.2586 9.25438 18.2586 10.7437 17.2221 11.3135L7.22259 16.8105C6.22292 17.36 5 16.6367 5 15.496L5 4.50214C5 3.36137 6.22292 2.63812 7.22259 3.18766L17.2221 8.68458Z"/></svg>',
+  close:     '<svg class="icon fl" viewBox="0 0 12 12"><path d="M2.08859 2.21569L2.14645 2.14645C2.32001 1.97288 2.58944 1.9536 2.78431 2.08859L2.85355 2.14645L6 5.293L9.14645 2.14645C9.34171 1.95118 9.65829 1.95118 9.85355 2.14645C10.0488 2.34171 10.0488 2.65829 9.85355 2.85355L6.707 6L9.85355 9.14645C10.0271 9.32001 10.0464 9.58944 9.91141 9.78431L9.85355 9.85355C9.67999 10.0271 9.41056 10.0464 9.21569 9.91141L9.14645 9.85355L6 6.707L2.85355 9.85355C2.65829 10.0488 2.34171 10.0488 2.14645 9.85355C1.95118 9.65829 1.95118 9.34171 2.14645 9.14645L5.293 6L2.14645 2.85355C1.97288 2.67999 1.9536 2.41056 2.08859 2.21569L2.14645 2.14645L2.08859 2.21569Z"/></svg>',
+  plus:      '<svg class="icon fl" viewBox="0 0 20 20"><path d="M10 2.5C10.2761 2.5 10.5 2.72386 10.5 3V9.5H17C17.2761 9.5 17.5 9.72386 17.5 10C17.5 10.2761 17.2761 10.5 17 10.5H10.5V17C10.5 17.2761 10.2761 17.5 10 17.5C9.72386 17.5 9.5 17.2761 9.5 17V10.5H3C2.72386 10.5 2.5 10.2761 2.5 10C2.5 9.72386 2.72386 9.5 3 9.5H9.5V3C9.5 2.72386 9.72386 2.5 10 2.5Z"/></svg>',
+  search:    '<svg class="icon fl" viewBox="0 0 20 20"><path d="M13.7291 14.4362C12.5924 15.411 11.115 16 9.5 16C5.91015 16 3 13.0899 3 9.5C3 5.91015 5.91015 3 9.5 3C13.0899 3 16 5.91015 16 9.5C16 11.115 15.411 12.5924 14.4361 13.7292L17.8535 17.1465C18.0487 17.3417 18.0487 17.6583 17.8535 17.8536C17.6799 18.0271 17.4105 18.0464 17.2156 17.9114L17.1464 17.8536L13.7291 14.4362ZM13.0196 13.7266C13.276 13.5128 13.5127 13.2761 13.7265 13.0197C14.5216 12.0659 15 10.8388 15 9.5C15 6.46243 12.5376 4 9.5 4C6.46243 4 4 6.46243 4 9.5C4 12.5376 6.46243 15 9.5 15C10.8388 15 12.0658 14.5217 13.0196 13.7266Z"/></svg>',
+  sort:      '<svg class="icon fl" viewBox="0 0 20 20"><path d="M2.35355 7.35418L4.99792 4.70981V16.5C4.99792 16.7761 5.22178 17 5.49792 17C5.77407 17 5.99792 16.7761 5.99792 16.5V4.7053L8.64682 7.3542C8.84209 7.54946 9.15867 7.54946 9.35393 7.3542C9.54919 7.15893 9.54919 6.84235 9.35393 6.64709L5.86386 3.15701L5.85387 3.14675C5.81608 3.10895 5.77374 3.07847 5.72861 3.05531C5.65697 3.01841 5.57828 2.99998 5.49959 3L5.49792 3C5.3441 3 5.20649 3.06947 5.11477 3.17874L1.64645 6.64707C1.45118 6.84233 1.45118 7.15891 1.64645 7.35418C1.84171 7.54944 2.15829 7.54944 2.35355 7.35418ZM17.6468 12.6458L15.0025 15.2902L15.0025 3.5C15.0025 3.22386 14.7786 3 14.5025 3C14.2263 3 14.0025 3.22386 14.0025 3.5L14.0025 15.2947L11.3536 12.6458C11.1583 12.4505 10.8417 12.4505 10.6464 12.6458C10.4512 12.8411 10.4512 13.1577 10.6464 13.3529L14.1365 16.843L14.1465 16.8533C14.1843 16.891 14.2266 16.9215 14.2718 16.9447C14.3434 16.9816 14.4221 17 14.5008 17L14.5025 17C14.6563 17 14.7939 16.9305 14.8856 16.8213L18.3539 13.3529C18.5492 13.1577 18.5492 12.8411 18.3539 12.6458C18.1587 12.4506 17.8421 12.4506 17.6468 12.6458Z"/></svg>',
+};
+
 let toastTimer;
 // toast('Saved') — or with an action: toast('Deleted', { action: 'Undo', onAction })
 function toast(msg, { action, onAction, duration = 1800 } = {}) {
@@ -502,7 +521,7 @@ function renderFooter() {
     const b = h(`
       <div class="banner">
         <strong>Adding to the total</strong>
-        <p>Once an hour, Macro Manager adds how many macros you expanded and the characters they saved to a total across everyone using it. Never your macros or anything you type.</p>
+        <p>Once an hour, Macro Manager adds how many times you used a macro to a total across everyone. Only that count leaves this computer: never your name, which macros you used, or anything you type.</p>
         <div class="banner-actions">
           <button class="btn small primary" data-ok>OK</button>
           <button class="btn small" data-off>Turn Off</button>
@@ -1096,6 +1115,9 @@ function openLinkPopover(anchor, ta) {
 }
 
 // Add a field at the caret, or (with `label`) change or remove an existing one.
+// One-click starting points in Add field; any label works.
+const FIELD_IDEAS = ['Name', 'Unit', 'Address', 'Date', 'Time', 'Phone', 'Email'];
+
 function openFieldPopover(anchor, ta, label) {
   const m = state.macros.snippets[state.selected];
   const { selectionStart: a, selectionEnd: b } = ta;
@@ -1105,7 +1127,8 @@ function openFieldPopover(anchor, ta, label) {
   const form = h(`
     <form class="pop-form field-pop">
       <h3>${editing ? 'Edit field' : 'Add field'}</h3>
-      <label class="pop-row"><span>Name</span><input id="pf-label" maxlength="40" placeholder="Resident name" value="${esc(def.label)}" /></label>
+      <label class="pop-row"><span>Ask for</span><input id="pf-label" maxlength="40" placeholder="Unit, address, move-in date…" value="${esc(def.label)}" /></label>
+      ${editing ? '' : `<div class="pop-row"><span></span><div class="field-ideas">${FIELD_IDEAS.map((x) => `<button type="button" class="field-idea">${esc(x)}</button>`).join('')}</div></div>`}
       <div class="pop-row"><span>Answer</span>
         <div class="seg" role="radiogroup">
           <button type="button" role="radio" data-kind="text">Typed in</button>
@@ -1134,6 +1157,11 @@ function openFieldPopover(anchor, ta, label) {
     form.querySelector(list ? '#pf-choices' : '#pf-default').focus();
   }));
   showKind();
+  form.querySelectorAll('.field-idea').forEach((x) => x.addEventListener('click', () => {
+    const input = form.querySelector('#pf-label');
+    input.value = x.textContent;
+    input.focus();
+  }));
   form.querySelector('[data-cancel]').addEventListener('click', () => closePopover(true));
   form.querySelector('[data-remove]')?.addEventListener('click', () => {
     closePopover();
@@ -1145,13 +1173,13 @@ function openFieldPopover(anchor, ta, label) {
     const name = cleanLabel(form.querySelector('#pf-label').value);
     const msg = form.querySelector('#pf-msg');
     const fail = (t) => { msg.textContent = t; msg.classList.remove('hidden'); };
-    if (!name) return fail(/[{}]/.test(form.querySelector('#pf-label').value) ? 'Names can’t contain { or }.' : 'Give the field a name.');
+    if (!name) return fail(/[{}]/.test(form.querySelector('#pf-label').value) ? 'Fields can’t contain { or }.' : 'Type what this field asks for, like Unit or Address.');
     const choices = form.querySelector('#pf-choices').value.split('\n').map((c) => c.trim()).filter(Boolean);
     if (list && !choices.length) return fail('Add at least one choice, one per line.');
     const key = name.toLowerCase();
     const renaming = editing && key !== label.toLowerCase();
     if (renaming && ((m.fields || []).some((f) => f.label.toLowerCase() === key) || fieldLabels(ta.value).some((l) => l.toLowerCase() === key))) {
-      return fail('Another field already has that name.');
+      return fail('Another field already asks for that.');
     }
     // Adding a name that's already here reuses that field: one answer, used
     // in both places.
@@ -1457,7 +1485,7 @@ function renderSettings() {
     }),
     groupRow({
       name: 'Add to the total',
-      sub: 'Once an hour, sends how many macros you expanded and the characters they saved, with a random ID for this computer. Never your macros, abbreviations, or anything you type.',
+      sub: 'Once an hour, adds how many times you used a macro, and the characters that saved, to a total across everyone. Never your name, which macros you used, your macros, or anything you type. Your per-macro stats stay on this computer. A random ID made here stops a count being added twice.',
       controls: [
         button('See It', () => window.open(state.statsUrl), 'small'),
         switchEl(st.shareUsage, (v) => setSettings({ shareUsage: v, usageNoticeSeen: true })),
@@ -1611,6 +1639,12 @@ document.addEventListener('keydown', (e) => {
     fieldMemory: s.fieldMemory || {},
   });
   document.body.classList.add(IS_MAC() ? 'mac' : 'win');
+  if (!IS_MAC()) {
+    Object.assign(ICON, WIN_ICON);
+    $('#btn-sort').innerHTML = ICON.sort;
+    $('#btn-new').innerHTML = ICON.plus;
+    el.search.querySelector('.icon').outerHTML = ICON.search;
+  }
   updateSearchKbd();
   render();
   maybeShowWhatsNew();

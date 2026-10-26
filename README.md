@@ -94,6 +94,9 @@ Your macros stay on your computer. They're never sent anywhere.
 
 Two numbers do leave it, about once an hour: how many macros you expanded and how many characters they saved since the last time. They're added to a running total across everyone using Macro Manager, shown on [throughnateseyes.com/work/macro-manager](https://throughnateseyes.com/work/macro-manager). Each report carries a random ID made on your computer (not tied to you or the machine), a sequence number, and the app version. Never a macro, an abbreviation, or anything you type.
 
+- **Only totals, never which macro.** A report says "12 more expansions, 3,400 more characters", not which macros those were. The per-macro counts, streaks and history you see in the app never leave your computer.
+- **Nothing in a report says who you are.** No name, email, account or computer name. The random ID only stops the same count being added twice.
+
 - Nothing is sent until you've answered the notice the app shows the first time.
 - **Settings → Your data → Add to the total** turns it off. Turning it back on doesn't send what happened while it was off.
 - Offline, it waits and sends the difference next time it can. The app works the same either way.
