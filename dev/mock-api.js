@@ -98,7 +98,11 @@
     previewTemplate: async (c, opts) => preview(c, opts),
     copyExpansion: async (p) => preview(p.content, p),
     paletteFill: async (values) => console.log('[mock] fill', values),
-    setSettings: async (p) => { if (!('__suspendShortcuts' in p)) settings = { ...settings, ...p }; return settings; },
+    setSettings: async (p) => {
+      if (!('__suspendShortcuts' in p)) settings = { ...settings, ...p };
+      if ('shortWeekday' in p) setShortWeekday(p.shortWeekday); // as main.js does
+      return settings;
+    },
     exportMacros: async (o = {}) => { const list = o.snippets || data.snippets; console.log("[mock] export", o.name || "backup", list.map((m) => m.title)); return { ok: true, count: list.length, file: `${o.name || "macro-manager-backup"}.json` }; },
     importMacros: async () => ({ ok: false }),
     importMacroText: async (text) => { const inc = JSON.parse(text).snippets || []; const have = new Set(data.snippets.map((m) => m.abbr)); const add = inc.filter((m) => !have.has(m.abbr)); data.snippets.push(...add); return { ok: true, added: add.length, skipped: inc.length - add.length }; },

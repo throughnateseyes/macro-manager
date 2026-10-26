@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { createStore } = require('./lib/store');
 const { createExpander, writeExpansion } = require('./lib/expander');
-const { BUILT_INS, TOKENS } = require('./lib/placeholders');
+const { BUILT_INS, TOKENS, setShortWeekday } = require('./lib/placeholders');
 const { renderExpansion } = require('./lib/format');
 const { fieldsFor } = require('./lib/fields');
 const { normalizeAccel, sameAccel, shortcutProblem, statKey } = require('./lib/shortcuts');
@@ -36,6 +36,7 @@ if (IS_WIN) app.setAppUserModelId('com.macromanager.app');
 const store = createStore(app.getPath('userData'));
 let macros = store.loadMacros();
 let settings = store.loadSettings();
+setShortWeekday(settings.shortWeekday);
 
 // Adding to the total (lib/report.js). Only from a packaged app, so development
 // and the CI smoke test never count; MM_STATS_URL points a dev build at a local
@@ -584,6 +585,7 @@ function applySettings(patch) {
   if (sharingResumed) reporter.rebase();
   if (sharingResumed || noticeAnswered) reporter.soon();
   if (rest.theme) nativeTheme.themeSource = rest.theme;
+  if ('shortWeekday' in rest) setShortWeekday(settings.shortWeekday);
   if ('quickInsertShortcut' in rest || 'openWindowShortcut' in rest || 'paused' in rest) registerShortcuts();
   updateTrayMenu();
   const snapshot = publicSettings();

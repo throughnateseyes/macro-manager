@@ -1467,8 +1467,14 @@ function renderSettings() {
       <div class="page-head"><h1>Settings</h1></div>
     </div>`);
 
+  // Full or short weekday, shown as the two answers rather than a checkbox,
+  // so the choice reads the same either way round.
+  const daySeg = h(`<div class="segmented">${[[false, 'Monday'], [true, 'Mon']].map(([v, l]) => `<button data-v="${v}" aria-pressed="${Boolean(st.shortWeekday) === v}">${l}</button>`).join('')}</div>`);
+  daySeg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => setSettings({ shortWeekday: b.dataset.v === 'true' })));
+
   page.append(group('Expansion', [
     groupRow({ name: 'Trigger prefix', sub: `Type this before an abbreviation, e.g. ${esc(state.macros.prefix)}sig`, controls: prefixPicker() }),
+    groupRow({ name: 'Weekday names', sub: `How ${esc(state.macros.prefix)}day and {weekday} write the day.`, controls: [daySeg] }),
     groupRow({ name: 'Pause expansion', sub: 'Temporarily stop macros from expanding.', controls: [switchEl(st.paused, (v) => setSettings({ paused: v }))] }),
     groupRow({ name: 'Launch at login', sub: 'Start quietly in the background so macros always work.', controls: [switchEl(st.launchAtLogin, (v) => setSettings({ launchAtLogin: v }))] }),
     ...(IS_MAC() ? [groupRow({

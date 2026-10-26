@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { expandTemplate, normalizeContent, resolveBuiltIn } = require('../lib/placeholders');
+const { expandTemplate, normalizeContent, resolveBuiltIn, setShortWeekday } = require('../lib/placeholders');
 
 const now = new Date(2026, 9, 24, 14, 5, 9); // Sat Oct 24 2026 2:05:09 PM
 
@@ -31,6 +31,17 @@ test('legacy HTML content is converted to text', () => {
 test('built-ins resolve', () => {
   assert.strictEqual(resolveBuiltIn('ts', now), 'October 24, 2026 2:05 PM');
   assert.strictEqual(resolveBuiltIn('nope', now), null);
+});
+
+test('short weekday names reach /day, {day} and {weekday}, and switch back', () => {
+  setShortWeekday(true);
+  try {
+    assert.strictEqual(resolveBuiltIn('day', now), 'Sat, October 24');
+    assert.strictEqual(expandTemplate('{day} / {weekday}', { now }).text, 'Sat, October 24 / Sat');
+  } finally {
+    setShortWeekday(false);
+  }
+  assert.strictEqual(resolveBuiltIn('day', now), 'Saturday, October 24');
 });
 
 test('{field:…} takes its answer; with none it is empty', () => {
