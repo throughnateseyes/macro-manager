@@ -1,8 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4FA3FF"/><stop offset="1" stop-color="#2F5BEA"/></linearGradient></defs>
-  <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#bg)"/>
-  <path d="M11.5 8 L8.5 24" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-  <g stroke="#fff" stroke-linecap="round" stroke-width="2.6">
-    <path d="M15 11.5 H24"/><path d="M15 16 H22.5"/><path d="M15 20.5 H19.5"/>
-  </g>
+  <!-- The stamp, drawn crisp for the Windows tray: same square, same slash angle as design/icon.svg. -->
+  <rect x="2" y="2" width="28" height="28" rx="6" fill="#1F4FD8"/>
+  <path fill="#F7F6F2" d="M8.7 25.7H12.9L23.1 6.4H18.9Z"/>
 </svg>
