@@ -1066,6 +1066,10 @@ function runSmokeTest() {
     await paletteWindow.webContents.executeJavaScript("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
     await sleep(600);
     if (paletteWindow.isVisible() || uses('smokefill') || await clipboard.readText() !== sentinel) return fail('Esc in the prompt did not leave everything alone');
+    // The window keeps its page while hidden: a prompt left showing there is
+    // what the next open drew (and took Enter on) before its own prompt, which
+    // made this step fail at random on the Mac runner.
+    if (await paletteWindow.webContents.executeJavaScript("!document.getElementById('fill').classList.contains('hidden')")) return fail('Esc left the prompt on the hidden page');
     type('smokefill');
     if (!await waitFor(promptShown)) return fail('fill-in prompt did not reopen');
     await paletteWindow.webContents.executeJavaScript(`(() => {
