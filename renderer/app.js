@@ -552,8 +552,8 @@ function renderFooter() {
   if (state.settings.shareUsage && !state.settings.usageNoticeSeen) {
     const b = h(`
       <div class="banner">
-        <strong>Adding to the total</strong>
-        <p>Once an hour, Macro Manager adds how many times you used a macro to a total across everyone. Only that count leaves this computer: never your name, which macros you used, or anything you type.</p>
+        <strong>Anonymous usage count</strong>
+        <p>Macro Manager adds how much you use it to one anonymous total. No names, no macros, nothing you type.</p>
         <div class="banner-actions">
           <button class="btn small primary" data-ok>OK</button>
           <button class="btn small" data-off>Turn Off</button>
@@ -1508,8 +1508,8 @@ function renderSettings() {
       ],
     }),
     groupRow({
-      name: 'Add to the total',
-      sub: 'Once an hour, adds how many times you used a macro, and the characters that saved, to a total across everyone. Never your name, which macros you used, your macros, or anything you type. Your per-macro stats stay on this computer. A random ID made here stops a count being added twice.',
+      name: 'Anonymous usage count',
+      sub: 'Adds how much you use Macro Manager to one shared total. No names, no macros, nothing you type.',
       controls: [
         button('See It', () => window.open(state.statsUrl), 'small'),
         switchEl(st.shareUsage, (v) => setSettings({ shareUsage: v, usageNoticeSeen: true })),
