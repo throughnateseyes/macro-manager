@@ -549,7 +549,7 @@ function renderFooter() {
   }
 
   // Shown once, and nothing is sent until it's answered either way.
-  if (state.settings.shareUsage && !state.settings.usageNoticeSeen) {
+  if (state.statsUrl && state.settings.shareUsage && !state.settings.usageNoticeSeen) {
     const b = h(`
       <div class="banner">
         <strong>Anonymous usage count</strong>
@@ -1513,14 +1513,15 @@ function renderSettings() {
         button('Export All…', () => exportMacros(), 'small'),
       ],
     }),
-    groupRow({
+    // A build with no stats server (a fork, say) has nothing to switch.
+    ...(state.statsUrl ? [groupRow({
       name: 'Anonymous usage count',
       sub: 'Adds how much you use Macro Manager to one shared total. No names, no macros, nothing you type.',
       controls: [
         button('See It', () => window.open(state.statsUrl), 'small'),
         switchEl(st.shareUsage, (v) => setSettings({ shareUsage: v, usageNoticeSeen: true })),
       ],
-    }),
+    })] : []),
     groupRow({
       name: 'Stored on this computer',
       sub: `<span class="path">${esc(state.dataPath)}</span><br>A backup is saved each day and kept for two weeks.`,
@@ -1761,9 +1762,16 @@ document.addEventListener('drop', (e) => {
     if (ta) insertToken(ta, token);
   });
   el.list.addEventListener('contextmenu', (e) => { if (e.target === el.list || e.target.closest('.list-empty')) showListMenu(e); });
-  api.onNavigate((page) => {
+  const navigate = (page) => {
     if (page === 'new') newMacro();
     else if (page.startsWith('macro:')) go('editor', Number(page.slice(6)));
     else go(page);
-  });
+  };
+  api.onNavigate(navigate);
+  // Asked for (Settings… in the tray, say) while this window was being made.
+  if (s.page) navigate(s.page);
+
+  // Nothing needs to move in a window you aren't looking at.
+  window.addEventListener('blur', () => document.body.classList.add('idle'));
+  window.addEventListener('focus', () => document.body.classList.remove('idle'));
 })();

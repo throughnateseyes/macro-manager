@@ -22,6 +22,9 @@
     "copyright": "Copyright © 2026 Nate Ziehn",
     "afterPack": "./afterPack.js",
     "npmRebuild": false,
+    "electronLanguages": [
+      "en-US"
+    ],
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -34,7 +37,9 @@
       "assets/**/*",
       "!node_modules/uiohook-napi/build/**",
       "!node_modules/uiohook-napi/libuiohook/**",
-      "!node_modules/uiohook-napi/src/**"
+      "!node_modules/uiohook-napi/src/**",
+      "!node_modules/uiohook-napi/prebuilds/linux-*/**",
+      "!node_modules/uiohook-napi/prebuilds/win32-arm64/**"
     ],
     "publish": {
       "provider": "github",
@@ -60,6 +65,9 @@
         }
       ],
       "category": "public.app-category.productivity",
+      "files": [
+        "!node_modules/uiohook-napi/prebuilds/win32-*/**"
+      ],
       "identity": null,
       "artifactName": "Macro-Manager-${version}-mac-${arch}.${ext}",
       "extendInfo": {
@@ -71,6 +79,9 @@
       "title": "Macro Manager"
     },
     "win": {
+      "files": [
+        "!node_modules/uiohook-napi/prebuilds/darwin-*/**"
+      ],
       "target": [
         {
           "target": "nsis",
