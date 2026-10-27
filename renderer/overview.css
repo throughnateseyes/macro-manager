@@ -49,6 +49,8 @@
   will-change: transform;
 }
 .sky-drift.still { animation: none; transform: translateX(calc(-0.4 * var(--sky-w))); }
+/* Paused, not stopped, while the window isn't focused: it picks up where it was. */
+body.idle .sky-drift { animation-play-state: paused; }
 @keyframes sky-breeze {
   from { transform: translateX(calc(-1 * var(--sky-w))); }
   to   { transform: translateX(0); }

@@ -42,13 +42,17 @@ setShortWeekday(settings.shortWeekday);
 // and the CI smoke test never count; MM_STATS_URL points a dev build at a local
 // portfolio server to test it. Nothing is sent before the notice is answered.
 // www, because the bare domain answers with a redirect.
-const STATS_URL = process.env.MM_STATS_URL || 'https://www.throughnateseyes.com';
+// Building your own copy? Set this to '' and nothing is ever sent (the setting
+// and the notice go too), or point it at your own server: the two routes it
+// must answer are in lib/report.js.
+const STATS_ORIGIN = 'https://www.throughnateseyes.com';
+const STATS_URL = process.env.MM_STATS_URL || STATS_ORIGIN;
 const reporter = createReporter({
   store,
   version: app.getVersion(),
   origin: STATS_URL,
   fetch: (url, init) => net.fetch(url, init),
-  isEnabled: () => settings.shareUsage && settings.usageNoticeSeen && !SMOKE_TEST
+  isEnabled: () => Boolean(STATS_URL) && settings.shareUsage && settings.usageNoticeSeen && !SMOKE_TEST
     && (app.isPackaged || Boolean(process.env.MM_STATS_URL)),
 });
 
@@ -128,7 +132,21 @@ function titleBarOverlay() {
   return { color: dark ? DARK_BG : LIGHT_BG, symbolColor: dark ? '#f2f2f7' : '#1c1c1e', height: 44 };
 }
 
+// The window isn't made until it's first opened, and a window left hidden in
+// the tray is let go after a while: each one is a renderer process holding
+// tens of MB, and most of the day Macro Manager is only the keyboard hook.
+// Opening it again builds a fresh one (its view settings live in localStorage).
+const RELEASE_HIDDEN_MS = 5 * 60 * 1000;
+let releaseTimer = null;
+
+// A page asked for before the window's page has asked for its state (it may
+// only just have been made) goes back with app:state, not as a message it
+// would miss.
+let pendingPage = null;
+let mainReady = false;
+
 function createWindow({ show = true } = {}) {
+  mainReady = false;
   mainWindow = new BrowserWindow({
     width: 1040,
     height: 680,
@@ -158,8 +176,7 @@ function createWindow({ show = true } = {}) {
   mainWindow.on('close', (e) => {
     if (isQuitting) return;
     e.preventDefault();
-    mainWindow.hide();
-    if (IS_MAC) app.dock.hide();
+    hideWindow();
     if (IS_WIN && tray && !settings.trayHintShown) {
       tray.displayBalloon({
         title: 'Macro Manager is still running',
@@ -176,30 +193,55 @@ function createWindow({ show = true } = {}) {
     mainWindow.webContents.send('accessibility:changed', accessibilityGranted());
   });
 
-  // Open links in the user's browser, never inside the app.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https:\/\//.test(url)) shell.openExternal(url);
-    return { action: 'deny' };
-  });
+  const win = mainWindow;
+  win.on('closed', () => { if (mainWindow === win) mainWindow = null; });
 }
 
 function showWindow(page) {
+  clearTimeout(releaseTimer);
   if (!mainWindow || mainWindow.isDestroyed()) createWindow();
   if (IS_MAC) app.dock.show();
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
-  if (page) mainWindow.webContents.send('navigate', page);
+  if (page && mainReady) mainWindow.webContents.send('navigate', page);
+  else if (page) pendingPage = page;
+}
+
+function hideWindow() {
+  mainWindow.hide();
+  if (IS_MAC) app.dock.hide();
+  clearTimeout(releaseTimer);
+  releaseTimer = setTimeout(releaseWindow, RELEASE_HIDDEN_MS);
+}
+
+function releaseWindow() {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return;
+  mainWindow.destroy();
 }
 
 function toggleWindow() {
-  if (mainWindow && mainWindow.isVisible() && mainWindow.isFocused()) {
-    mainWindow.hide();
-    if (IS_MAC) app.dock.hide();
-  } else {
-    showWindow();
-  }
+  if (mainWindow && mainWindow.isVisible() && mainWindow.isFocused()) hideWindow();
+  else showWindow();
 }
+
+// Links (in a macro's preview, say) open in the user's browser. Nothing ever
+// navigates inside the app: a page from elsewhere loaded into one of its
+// windows would be handed the same preload, and with it every macro.
+function openOutside(url) {
+  if (/^(https:|mailto:)/i.test(url)) shell.openExternal(url);
+}
+
+app.on('web-contents-created', (_e, contents) => {
+  contents.on('will-navigate', (e, url) => {
+    e.preventDefault();
+    openOutside(url);
+  });
+  contents.setWindowOpenHandler(({ url }) => {
+    openOutside(url);
+    return { action: 'deny' };
+  });
+});
 
 nativeTheme.on('updated', () => {
   if (IS_WIN && mainWindow && !mainWindow.isDestroyed()) {
@@ -726,7 +768,9 @@ function attachTextContextMenu(win) {
 // ---------------------------------------------------------------------------
 // IPC
 // ---------------------------------------------------------------------------
-ipcMain.handle('app:state', () => ({
+ipcMain.handle('app:state', (e) => ({
+  // Only the main window takes a page; the palette asks for state too.
+  ...(mainWindow && e.sender === mainWindow.webContents ? takePendingPage() : {}),
   macros,
   usage: store.loadUsage(),
   stats: store.loadStats(),
@@ -735,13 +779,20 @@ ipcMain.handle('app:state', () => ({
   version: app.getVersion(),
   platform: process.platform,
   dataPath: store.paths.macros,
-  statsUrl: `${STATS_URL}/work/macro-manager`,
+  statsUrl: STATS_URL ? `${STATS_URL}/work/macro-manager` : '',
   accessibility: accessibilityGranted(),
   update: updateState,
   builtIns: BUILT_INS,
   tokens: TOKENS,
   fieldMemory: store.loadFieldMemory(),
 }));
+
+function takePendingPage() {
+  const page = pendingPage;
+  pendingPage = null;
+  mainReady = true;
+  return { page };
+}
 
 ipcMain.handle('macros:save', (e, data) => {
   macros = store.saveMacros(data);
@@ -881,8 +932,8 @@ app.whenReady().then(() => {
     settings = store.saveSettings({ launchAtLoginInitialized: true });
   }
 
-  createWindow({ show: !startHidden });
-  if (startHidden && IS_MAC) app.dock.hide();
+  if (!startHidden) createWindow();
+  else if (IS_MAC) app.dock.hide();
   createTray();
   createPalette();
   registerShortcuts();

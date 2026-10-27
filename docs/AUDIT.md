@@ -153,3 +153,24 @@ The lesson of §4.2 was that the toolbar shipped before the data could hold what
 | **Needs a hand test** | Outlook on Windows (classic and new), the Zendesk agent composer, Teams (desktop), Apple Mail's font for unstyled pasted HTML, and that the fill-in prompt takes focus when it opens from a typed abbreviation on Windows |
 
 Known limit: in a formatted macro, `{cursor}` is counted against what a rich-text app shows. If it sits above a list, a plain-text app may put the caret a couple of characters off per list item.
+
+## 12. Lighter in the tray, smaller to download
+
+Measured on Windows 11 with a dev build (private memory, all processes) and the real NSIS installer:
+
+| | Before | After |
+|---|---|---|
+| Idle in the tray after login | 5 processes, 207 MB | 4 processes, 161 MB |
+| Installer | 121.1 MB | 114.4 MB |
+| Installed | 371 MB | 325 MB |
+
+| # | Finding | Sev | Change |
+|---|---|---|---|
+| 12.1 | **A link in a macro's preview navigated the app window to that site**, with the preload still attached, so the page would have had `macroAPI` and every macro. Only `window.open` was handled, and only in the main window. | High | Every window refuses navigation. `https:` and `mailto:` links open in the browser instead. |
+| 12.2 | The main window was built at login even when it started hidden, and stayed in memory all day once closed. | Med | Made on first open, and let go after five minutes hidden. A page asked for before it has loaded (Settings… in the tray) goes back with `app:state` rather than a message it would miss. |
+| 12.3 | 55 Chromium language packs shipped (49 MB installed) for an English-only UI. | Low | `electronLanguages: ["en-US"]`. |
+| 12.4 | Keyboard-hook binaries for every platform shipped in every build. | Low | Each build keeps its own. |
+| 12.5 | The Overview sky kept animating behind other windows. | Low | Paused while the window isn't focused. |
+| 12.6 | A fork that kept `STATS_ORIGIN` would add its users to this project's total. | Med | `''` turns reporting off, along with the setting and the notice. The README's "Make it your own" lists what a fork changes. |
+
+Not changed: turning off hardware acceleration takes idle memory to about 95 MB (the GPU process falls from 82 to 16 MB), but rendering moves to the CPU, and that needs trying on a Mac and a slow Windows laptop first. Maximum installer compression saved under 1 KB.

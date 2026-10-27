@@ -102,6 +102,13 @@ Two numbers do leave it, about once an hour: how many macros you expanded and ho
 - Offline, it waits and sends the difference next time it can. The app works the same either way.
 - The code is [`lib/report.js`](lib/report.js), and `report.json` in the data folder is everything it keeps.
 
+What the server keeps, so nothing here is a surprise:
+
+- **One running total per random ID**: expansions, characters, app version, and when its first and latest reports arrived. That's what lets one install's bad counts be taken back out. It isn't linked to anything else.
+- **Your IP address reaches the server**, as with any web request. The server code only uses it as a keyed hash that expires after 24 hours, to limit how many new IDs one network can make in a day, and never stores it with the counts.
+
+The only other time the app goes online is to **check GitHub for updates**, every few hours. GitHub sees that a copy of Macro Manager asked, and which version.
+
 | | Location |
 |---|---|
 | Mac | `~/Library/Application Support/macro-manager/` |
@@ -133,5 +140,17 @@ renderer/          Main window + Quick Insert palette (vanilla JS, no framework)
 ```
 
 Releasing is covered in **[docs/RELEASING.md](docs/RELEASING.md)**, and the v1 → v2 review in **[docs/AUDIT.md](docs/AUDIT.md)**.
+
+### Make it your own
+
+Fork it, rename it, ship it to your team. Before your first build, change three things in your copy, or your build will act like this one:
+
+| What | Where | Why |
+|---|---|---|
+| `build.publish.owner` and `repo` | `package.json` | Installed copies update themselves from this repo's releases. Point them at yours. |
+| `build.appId`, `productName` | `package.json` | So your build installs beside this one instead of over it. |
+| `STATS_ORIGIN` | `main.js` | Set it to `''` and nothing is ever sent (the setting and notice go too), or point it at your own server. Left alone, your team's counts are added to this project's total. |
+
+Macros are plain JSON ([docs/MACRO-FORMAT.md](docs/MACRO-FORMAT.md)), so a shared folder of macros, an importer, or a script that writes them works without touching the app.
 
 Built with Electron and [uiohook-napi](https://github.com/SnosMe/uiohook-napi). MIT licensed.
